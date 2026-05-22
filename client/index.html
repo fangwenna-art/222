@@ -74,12 +74,24 @@
     <button id="btnStartHand" type="button" class="dock-btn dock-btn--start">开始新一局</button>
     <button id="btnLeaveRoom" type="button" class="dock-btn dock-btn--leave">退出房间</button>
     <div id="actionBar" class="action-bar" hidden>
-      <button id="btnFold" type="button" class="btn-danger">弃牌</button>
-      <button id="btnCheck" type="button">Check</button>
-      <button id="btnBet" type="button">下注</button>
-      <button id="btnCall" type="button">跟注</button>
-      <button id="btnRaise" type="button">加注</button>
-      <button id="btnAllIn" type="button">All-in</button>
+      <div class="bet-controls">
+        <label for="betAmount">下注金额</label>
+        <input id="betAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="输入金额" />
+        <div class="quick-bets">
+          <button id="btnHalfPot" type="button">1/2 池</button>
+          <button id="btnPot" type="button">底池</button>
+          <button id="btnDouble" type="button">2x</button>
+          <button id="btnTriple" type="button">3x</button>
+        </div>
+      </div>
+      <div class="action-buttons">
+        <button id="btnFold" type="button" class="btn-danger">弃牌</button>
+        <button id="btnCheck" type="button">Check</button>
+        <button id="btnBet" type="button">下注</button>
+        <button id="btnCall" type="button">跟注</button>
+        <button id="btnRaise" type="button">加注</button>
+        <button id="btnAllIn" type="button">All-in</button>
+      </div>
     </div>
   </footer>
 

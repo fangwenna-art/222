@@ -80,8 +80,41 @@ function makeEngine() {
   engine.applyAction('A', 'raise', 40);
   assert(engine.currentBet === 60, `raise by 40 should set currentBet to 60, got ${engine.currentBet}`);
   assert(engine.lastRaiseAmount === 40, `lastRaiseAmount should become 40, got ${engine.lastRaiseAmount}`);
-  engine.applyAction('B', 'raise', 20);
-  assert(engine.currentBet === 100, `min re-raise should use lastRaiseAmount 40, got ${engine.currentBet}`);
+  const result = engine.applyAction('B', 'raise', 20);
+  assert(!result.ok && result.error.includes('最小加注额'), 'min re-raise below lastRaiseAmount should be rejected');
+}
+
+{
+  const engine = new GameEngine('VALIDATION', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+    ['C', { name: 'C' }],
+  ]);
+  engine.startHand();
+  let result = engine.applyAction('A', 'raise', 10);
+  assert(!result.ok && result.error.includes('最小加注额'), 'raise below lastRaiseAmount should be rejected');
+  result = engine.applyAction('A', 'raise', 40);
+  assert(result.ok, 'valid raise should pass');
+  result = engine.applyAction('B', 'raise', 20);
+  assert(!result.ok && result.error.includes('最小加注额'), 're-raise below updated lastRaiseAmount should be rejected');
+}
+
+{
+  const engine = new GameEngine('BETVALIDATION', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+  ]);
+  engine.phase = 'flop';
+  engine.community = [card(2, 'c'), card(7, 'd'), card(9, 'h')];
+  engine.activeIndex = 0;
+  engine.currentBet = 0;
+  engine.lastRaiseAmount = 20;
+  engine.seats.A.holeCards = [card(14, 's'), card(3, 'd')];
+  engine.seats.B.holeCards = [card(12, 'h'), card(3, 'c')];
+  let result = engine.applyAction('A', 'bet', 10);
+  assert(!result.ok && result.error.includes('最小下注'), 'bet below big blind should be rejected');
+  result = engine.applyAction('A', 'bet', 40);
+  assert(result.ok, 'valid bet should pass');
 }
 
 console.log('全部结算测试通过');

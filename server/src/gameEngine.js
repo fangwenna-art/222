@@ -348,7 +348,13 @@ export class GameEngine {
     if (seat.allIn) return { ok: false, error: '你已 All-in' };
 
     const toCall = Math.max(0, this.currentBet - seat.bet);
-    const numericAmount = Number.isFinite(Number(amount)) ? Number(amount) : RAISE_STEP;
+    const numericAmount = Number(amount);
+    const hasAmount = Number.isFinite(numericAmount);
+    const wholeAmount = hasAmount ? Math.floor(numericAmount) : null;
+
+    if (hasAmount && wholeAmount <= 0 && action !== 'allin') {
+      return { ok: false, error: '下注金额必须大于 0' };
+    }
 
     if (action === 'fold') {
       seat.folded = true;
@@ -368,7 +374,10 @@ export class GameEngine {
       this.message = seat.allIn ? `${this.names[playerId]} All-in 跟注 ${paid}` : `${this.names[playerId]} 跟注 ${paid}`;
     } else if (action === 'bet') {
       if (this.currentBet > 0) return { ok: false, error: '已有下注，请 Call 或 Raise' };
-      const betAmount = Math.max(BIG_BLIND, numericAmount);
+      if (!hasAmount) return { ok: false, error: '请输入下注金额' };
+      const minBet = BIG_BLIND;
+      const betAmount = wholeAmount;
+      if (betAmount < minBet) return { ok: false, error: `最小下注 ${minBet}` };
       if (betAmount > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
       const paid = this._commitChips(playerId, betAmount);
       this.currentBet = seat.bet;
@@ -382,7 +391,9 @@ export class GameEngine {
       this.message = `${this.names[playerId]} 下注 ${paid}`;
     } else if (action === 'raise') {
       if (this.currentBet <= 0) return { ok: false, error: '当前无人下注，请 Bet' };
-      const raiseBy = Math.max(this.lastRaiseAmount, numericAmount);
+      if (!hasAmount) return { ok: false, error: '请输入加注金额' };
+      const raiseBy = wholeAmount;
+      if (raiseBy < this.lastRaiseAmount) return { ok: false, error: `最小加注额 ${this.lastRaiseAmount}` };
       const target = this.currentBet + raiseBy;
       const need = target - seat.bet;
       if (need > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
@@ -401,11 +412,15 @@ export class GameEngine {
       const paid = this._commitChips(playerId, seat.chips);
       seat.acted = true;
       if (seat.bet > this.currentBet) {
-        this.lastRaiseAmount = Math.max(this.lastRaiseAmount, seat.bet - this.currentBet);
+        const raiseDelta = seat.bet - this.currentBet;
+        const isFullRaise = raiseDelta >= this.lastRaiseAmount;
+        if (isFullRaise) this.lastRaiseAmount = raiseDelta;
         this.currentBet = seat.bet;
         this.lastRaiserId = playerId;
-        for (const id of this.order) {
-          if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
+        if (isFullRaise) {
+          for (const id of this.order) {
+            if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
+          }
         }
       }
       this._log(playerId, 'allin', paid);
@@ -532,6 +547,7 @@ export class GameEngine {
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
       minRaise: this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND,
+      minBet: BIG_BLIND,
       actionLogs: this.actionLogs.slice(-12),
       communityCards: this.community.map(cardLabel),
       message: this.message,

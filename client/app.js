@@ -51,6 +51,11 @@ const els = {
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   btnLeaveRoom: $('btnLeaveRoom'),
+  betAmount: $('betAmount'),
+  btnHalfPot: $('btnHalfPot'),
+  btnPot: $('btnPot'),
+  btnDouble: $('btnDouble'),
+  btnTriple: $('btnTriple'),
   btnFold: $('btnFold'),
   btnCheck: $('btnCheck'),
   btnBet: $('btnBet'),
@@ -171,6 +176,7 @@ function renderGameState(gameState) {
   els.roomId.value = gameState.roomId;
 
   const { players, hand } = gameState;
+  window.__lastHandState = hand;
 
   els.playerCount.textContent = String(players.length);
 
@@ -269,8 +275,14 @@ function renderGameState(gameState) {
 
   const mySeat = hand.seats.find((s) => s.id === myPlayerId);
   const toCall = mySeat ? Math.max(0, hand.currentBet - mySeat.bet) : 0;
+  const minBet = hand.minBet || hand.bigBlind || 20;
+  const minRaise = hand.minRaise || 20;
   const canCheckOrBet = myTurn && toCall === 0;
   const canCallOrRaise = myTurn && toCall > 0;
+
+  els.betAmount.disabled = !myTurn;
+  els.betAmount.min = String(canCheckOrBet ? minBet : minRaise);
+  els.betAmount.placeholder = canCheckOrBet ? `最小下注 ${minBet}` : `最小加注 ${minRaise}`;
 
   els.btnFold.disabled = !myTurn;
   els.btnCheck.disabled = !canCheckOrBet;
@@ -278,10 +290,14 @@ function renderGameState(gameState) {
   els.btnCall.disabled = !canCallOrRaise;
   els.btnRaise.disabled = !canCallOrRaise;
   els.btnAllIn.disabled = !myTurn || !mySeat || mySeat.chips <= 0;
+  els.btnHalfPot.disabled = !myTurn;
+  els.btnPot.disabled = !myTurn;
+  els.btnDouble.disabled = !myTurn;
+  els.btnTriple.disabled = !myTurn;
 
   els.btnCall.textContent = toCall > 0 ? `跟注 ${toCall}` : '跟注';
-  els.btnBet.textContent = `下注 ${hand.minRaise || 20}`;
-  els.btnRaise.textContent = `加注 ${hand.minRaise || 20}`;
+  els.btnBet.textContent = `下注 ≥${minBet}`;
+  els.btnRaise.textContent = `加注 ≥${minRaise}`;
 }
 
 function clearRoomView() {
@@ -383,6 +399,35 @@ els.btnStartHand.addEventListener('click', () => {
   });
 });
 
+function getBetAmount() {
+  const value = Number(els.betAmount.value);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.floor(value);
+}
+
+function setBetAmount(amount) {
+  els.betAmount.value = String(Math.max(1, Math.floor(amount)));
+}
+
+function getCurrentHand() {
+  return window.__lastHandState || null;
+}
+
+function quickBet(multiplier) {
+  const hand = getCurrentHand();
+  if (!hand) return;
+  const mySeat = hand.seats.find((s) => s.id === myPlayerId);
+  if (!mySeat) return;
+  const toCall = Math.max(0, hand.currentBet - mySeat.bet);
+  const base = multiplier === 'halfPot'
+    ? Math.ceil(hand.pot / 2)
+    : multiplier === 'pot'
+      ? hand.pot
+      : hand.bigBlind * multiplier;
+  const minimum = toCall > 0 ? hand.minRaise || hand.bigBlind : hand.minBet || hand.bigBlind;
+  setBetAmount(Math.min(mySeat.chips, Math.max(minimum, base)));
+}
+
 function emitAction(action, amount) {
   socket.emit('game:action', { action, amount }, (res) => {
     if (!res?.ok) {
@@ -395,10 +440,28 @@ function emitAction(action, amount) {
 
 els.btnFold.addEventListener('click', () => emitAction('fold'));
 els.btnCheck.addEventListener('click', () => emitAction('check'));
-els.btnBet.addEventListener('click', () => emitAction('bet', 20));
+els.btnBet.addEventListener('click', () => {
+  const amount = getBetAmount();
+  if (!amount) {
+    setMessage('请输入下注金额', 'error');
+    return;
+  }
+  emitAction('bet', amount);
+});
 els.btnCall.addEventListener('click', () => emitAction('call'));
-els.btnRaise.addEventListener('click', () => emitAction('raise', 20));
+els.btnRaise.addEventListener('click', () => {
+  const amount = getBetAmount();
+  if (!amount) {
+    setMessage('请输入加注金额', 'error');
+    return;
+  }
+  emitAction('raise', amount);
+});
 els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.btnHalfPot.addEventListener('click', () => quickBet('halfPot'));
+els.btnPot.addEventListener('click', () => quickBet('pot'));
+els.btnDouble.addEventListener('click', () => quickBet(2));
+els.btnTriple.addEventListener('click', () => quickBet(3));
 els.btnLeaveRoom.addEventListener('click', () => {
   socket.emit('room:leave', {}, (res) => {
     if (!res?.ok) {

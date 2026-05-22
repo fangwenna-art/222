@@ -5,7 +5,7 @@
 }
 
 :root {
-  --dock-height: 132px;
+  --dock-height: 210px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-max: 420px;
   --me-color: #fbbf24;
@@ -488,15 +488,49 @@ button:disabled {
 }
 
 .bottom-dock .action-bar {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
+.bet-controls {
+  display: grid;
+  gap: 6px;
+}
+
+.bet-controls label {
+  margin-bottom: 0;
+  font-size: 0.75rem;
+}
+
+.bet-controls input {
+  margin-bottom: 0;
+  min-height: 38px;
+}
+
+.quick-bets,
+.action-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.action-buttons {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.quick-bets button {
+  min-height: 34px;
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  background: #475569;
+  color: #e2e8f0;
+}
+
 .bottom-dock .action-bar button {
-  min-height: 44px;
-  padding: 8px 10px;
-  font-size: 0.875rem;
+  min-height: 42px;
+  padding: 8px 8px;
+  font-size: 0.8125rem;
 }
 
 .bottom-dock .btn-danger {
