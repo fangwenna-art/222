@@ -154,6 +154,17 @@ function setMessage(text, type = '') {
   els.message.className = `message${type ? ` message--${type}` : ''}`;
 }
 
+const AVATAR_EMOJIS = ['😎', '🤠', '🦊', '🐼', '🐯', '🐸', '🐵', '👻', '🤖', '🦁', '🐨', '🐰'];
+
+function avatarForPlayer(player) {
+  const key = String(player?.id || player?.name || 'player');
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_EMOJIS[hash % AVATAR_EMOJIS.length];
+}
+
 function setLobbyButtonsEnabled(enabled) {
   els.btnCreate.disabled = !enabled;
   els.btnJoin.disabled = !enabled;
@@ -306,7 +317,7 @@ function renderGameState(gameState) {
       li.className = `seat-item seat-item--lobby ${tableSeatClass(index, tablePlayers.length)}`;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
-        <div class="seat-avatar">${p.name.slice(0, 1)}</div>
+        <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(p)}</div>
         <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
         <div class="seat-meta">${p.online ? '等待开局' : '断线保留中'}</div>
       `;
@@ -356,7 +367,7 @@ function renderGameState(gameState) {
 
     const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
-      <div class="seat-avatar">${seat.name.slice(0, 1)}</div>
+      <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(seat)}</div>
       <div class="seat-head">
         <strong>${seat.name}</strong>
         ${seat.isDealer ? '<span class="tag">D</span>' : ''}

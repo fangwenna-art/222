@@ -586,6 +586,8 @@ body.room-active .poker-table {
   background: radial-gradient(circle at 30% 25%, #fef3c7, #0f766e 58%, #0f172a);
   border: 2px solid #1f2937;
   color: #f8fafc;
+  font-size: 1.35rem;
+  line-height: 1;
   font-weight: 900;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.45);
 }
@@ -1114,6 +1116,7 @@ body.has-dock .lobby-card {
     width: 36px;
     height: 36px;
     top: -19px;
+    font-size: 1.15rem;
   }
 
   .seat-head strong {
