@@ -107,11 +107,20 @@ function loadSession() {
   }
 }
 
+function setScreen(screen) {
+  const isLogin = screen === 'login';
+  const isEntry = screen === 'entry';
+  const isRoom = screen === 'room';
+  els.loginCard.hidden = !isLogin;
+  els.lobbyCard.hidden = !isEntry;
+  els.roomPanel.hidden = !isRoom;
+  document.body.classList.toggle('room-active', isRoom);
+}
+
 function setEntryMode(mode) {
   const hasName = Boolean(currentPlayerName.trim());
   const showLogin = mode === 'login' || !hasName;
-  els.loginCard.hidden = !showLogin;
-  els.lobbyCard.hidden = showLogin;
+  setScreen(showLogin ? 'login' : 'entry');
   els.currentPlayerName.textContent = currentPlayerName || '—';
   if (currentPlayerName) els.playerName.value = currentPlayerName;
 }
@@ -247,10 +256,7 @@ function tableSeatClass(index, count) {
 function renderGameState(gameState) {
   if (!gameState) return;
 
-  els.roomPanel.hidden = false;
-  els.loginCard.hidden = true;
-  els.lobbyCard.hidden = true;
-  document.body.classList.add('room-active');
+  setScreen('room');
   setDockVisible(true);
   els.currentRoomId.textContent = gameState.roomId;
   els.roomId.value = gameState.roomId;
@@ -426,9 +432,7 @@ function clearRoomView() {
   betPanelOpen = false;
   actionLogOpen = false;
   document.body.classList.remove('bet-panel-open');
-  els.roomPanel.hidden = true;
   setEntryMode(currentPlayerName ? 'entry' : 'login');
-  document.body.classList.remove('room-active');
   setDockVisible(false);
   els.seatList.innerHTML = '';
   els.mySeatPanel.hidden = true;
