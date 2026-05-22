@@ -136,6 +136,12 @@ io.on('connection', (socket) => {
   socket.on('room:join', ({ roomId, playerName }, ack) => {
     const id = String(roomId || '').trim().toUpperCase();
     const name = String(playerName || '').trim() || '匿名玩家';
+
+    if (socket.data.roomId && socket.data.roomId !== id) {
+      ack?.({ ok: false, error: '你已在一个房间中，请先退出当前房间' });
+      return;
+    }
+
     const result = roomManager.joinRoom(id, name);
 
     if (!result.ok) {
