@@ -346,10 +346,10 @@ body.room-active .poker-table {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(5, 46, 22, 0.44);
-  border: 1px solid rgba(134, 239, 172, 0.16);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .table-pot {
@@ -366,6 +366,7 @@ body.room-active .poker-table {
   max-width: 100%;
   font-size: 0.75rem;
   color: #d1fae5;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -583,7 +584,7 @@ body.room-active .poker-table {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 30% 25%, #fef3c7, #0f766e 58%, #0f172a);
+  background: radial-gradient(circle at 30% 25%, #1f2937, #020617 64%, #000);
   border: 2px solid #1f2937;
   color: #f8fafc;
   font-size: 1.35rem;
@@ -816,22 +817,33 @@ body.room-active .poker-table {
 }
 
 .winners-box {
-  flex: 0 0 auto;
-  padding: 10px 12px;
-  background: linear-gradient(135deg, #f59e0b, #facc15 46%, #fde68a);
-  border-radius: 14px;
-  margin-top: 4px;
-  border: 1px solid #fef3c7;
-  box-shadow: 0 10px 28px rgba(250, 204, 21, 0.36);
-  color: #422006;
+  position: fixed;
+  top: calc(58px + var(--safe-top));
+  left: 50%;
+  z-index: 180;
+  width: min(320px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: 9px 11px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(66, 32, 6, 0.96));
+  border-radius: 16px;
+  margin: 0;
+  border: 1px solid rgba(250, 204, 21, 0.76);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(254, 243, 199, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #fef3c7;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .winner-kicker {
-  font-size: 0.625rem;
+  font-size: 0.5625rem;
   font-weight: 900;
-  letter-spacing: 0.12em;
-  opacity: 0.8;
-  margin-bottom: 4px;
+  letter-spacing: 0.14em;
+  color: #facc15;
+  opacity: 0.94;
+  margin-bottom: 3px;
 }
 
 .winners-box ul {
@@ -844,25 +856,27 @@ body.room-active .poker-table {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 
 .winners-box li strong {
-  font-size: 1rem;
+  font-size: 0.875rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .winners-box li span {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
+  color: #facc15;
   font-weight: 1000;
 }
 
 .winners-box li small {
   grid-column: 1 / -1;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 700;
+  color: #fde68a;
   opacity: 0.82;
 }
 
