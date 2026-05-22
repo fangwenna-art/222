@@ -31,9 +31,6 @@ const els = {
   connectionStatus: $('connectionStatus'),
   serverUrl: $('serverUrl'),
   playerName: $('playerName'),
-  currentPlayerName: $('currentPlayerName'),
-  btnSetName: $('btnSetName'),
-  btnChangeName: $('btnChangeName'),
   roomId: $('roomId'),
   btnCreate: $('btnCreate'),
   btnJoin: $('btnJoin'),
@@ -41,7 +38,6 @@ const els = {
   roomPanel: $('roomPanel'),
   currentRoomId: $('currentRoomId'),
   playerCount: $('playerCount'),
-  loginCard: $('loginCard'),
   lobbyCard: $('lobbyCard'),
   bottomDock: $('bottomDock'),
   gamePhase: $('gamePhase'),
@@ -108,27 +104,20 @@ function loadSession() {
 }
 
 function setScreen(screen) {
-  const isLogin = screen === 'login';
-  const isEntry = screen === 'entry';
   const isRoom = screen === 'room';
-  els.loginCard.hidden = !isLogin;
-  els.lobbyCard.hidden = !isEntry;
+  els.lobbyCard.hidden = isRoom;
   els.roomPanel.hidden = !isRoom;
   document.body.classList.toggle('room-active', isRoom);
 }
 
-function setEntryMode(mode) {
-  const hasName = Boolean(currentPlayerName.trim());
-  const showLogin = mode === 'login' || !hasName;
-  setScreen(showLogin ? 'login' : 'entry');
-  els.currentPlayerName.textContent = currentPlayerName || '—';
+function setEntryMode() {
+  setScreen('entry');
   if (currentPlayerName) els.playerName.value = currentPlayerName;
 }
 
 function savePlayerName(name) {
   currentPlayerName = String(name || '').trim();
   if (currentPlayerName) window.localStorage.setItem(PROFILE_KEY, currentPlayerName);
-  els.currentPlayerName.textContent = currentPlayerName || '—';
 }
 
 function saveSession(session) {
@@ -432,7 +421,7 @@ function clearRoomView() {
   betPanelOpen = false;
   actionLogOpen = false;
   document.body.classList.remove('bet-panel-open');
-  setEntryMode(currentPlayerName ? 'entry' : 'login');
+  setEntryMode();
   setDockVisible(false);
   els.seatList.innerHTML = '';
   els.mySeatPanel.hidden = true;
@@ -460,7 +449,7 @@ socket.on('connect', () => {
     return;
   }
 
-  setEntryMode(currentPlayerName ? 'entry' : 'login');
+  setEntryMode();
   setMessage('Socket 连接成功', 'success');
 });
 
@@ -479,32 +468,23 @@ socket.on('connect_error', (err) => {
 socket.on('gameState', renderGameState);
 
 function getPlayerName() {
-  return currentPlayerName.trim() || els.playerName.value.trim() || '匿名玩家';
-}
-
-els.btnSetName.addEventListener('click', () => {
   const name = els.playerName.value.trim();
-  if (!name) {
-    setMessage('请输入昵称', 'error');
-    return;
-  }
-  savePlayerName(name);
-  setEntryMode('entry');
-  setMessage('请选择创建或加入房间', 'success');
-});
-
-els.btnChangeName.addEventListener('click', () => {
-  setEntryMode('login');
-  setMessage('可以修改昵称后继续');
-});
+  if (name) savePlayerName(name);
+  return name || currentPlayerName.trim();
+}
 
 els.btnCreate.addEventListener('click', () => {
   if (!socket.connected) {
     setMessage('请先等待连接成功', 'error');
     return;
   }
+  const playerName = getPlayerName();
+  if (!playerName || playerName === '匿名玩家') {
+    setMessage('请先输入昵称', 'error');
+    return;
+  }
   setMessage('正在创建房间…');
-  socket.emit('room:create', { playerName: getPlayerName() }, (res) => {
+  socket.emit('room:create', { playerName }, (res) => {
     if (!res?.ok) {
       setMessage(res?.error || '创建失败', 'error');
       return;
@@ -525,8 +505,13 @@ els.btnJoin.addEventListener('click', () => {
     setMessage('请输入房间号', 'error');
     return;
   }
+  const playerName = getPlayerName();
+  if (!playerName || playerName === '匿名玩家') {
+    setMessage('请先输入昵称', 'error');
+    return;
+  }
   setMessage(`正在加入房间 ${roomId}…`);
-  socket.emit('room:join', { roomId, playerName: getPlayerName() }, (res) => {
+  socket.emit('room:join', { roomId, playerName }, (res) => {
     if (!res?.ok) {
       setMessage(res?.error || '加入失败', 'error');
       return;

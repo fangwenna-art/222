@@ -13,23 +13,11 @@
       <h1>德州扑克</h1>
     </header>
 
-    <section class="card login-card" id="loginCard">
+    <section class="card lobby-card" id="lobbyCard">
       <p class="screen-kicker">进入牌桌前</p>
-      <h2>先设置你的昵称</h2>
+      <h2>设置昵称并选择房间</h2>
       <label for="playerName">昵称</label>
       <input id="playerName" type="text" placeholder="输入你的昵称" maxlength="20" />
-      <button id="btnSetName" type="button">继续</button>
-    </section>
-
-    <section class="card lobby-card" id="lobbyCard" hidden>
-      <div class="entry-head">
-        <div>
-          <p class="screen-kicker">房间入口</p>
-          <h2>选择进入方式</h2>
-          <span>当前昵称：<strong id="currentPlayerName">—</strong></span>
-        </div>
-        <button id="btnChangeName" type="button" class="room-leave-btn">修改昵称</button>
-      </div>
 
       <div class="actions">
         <button id="btnCreate" type="button">创建房间</button>

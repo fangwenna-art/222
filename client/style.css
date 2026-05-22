@@ -40,14 +40,14 @@ body.room-active {
 
 body.room-active .app {
   height: 100dvh;
-  padding: calc(8px + var(--safe-top)) 10px calc(var(--dock-height) + var(--safe-bottom) + 8px);
+  padding: calc(8px + var(--safe-top)) 10px calc(8px + var(--safe-bottom));
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-body.has-dock .app,
-body.has-dock.bet-panel-open .app {
+body.has-dock:not(.room-active) .app,
+body.has-dock.bet-panel-open:not(.room-active) .app {
   padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 18px);
 }
 
@@ -136,28 +136,9 @@ header h1 {
   margin-bottom: 4px;
 }
 
-.login-card h2,
 .lobby-card h2 {
   font-size: 1.1rem;
   margin-bottom: 12px;
-}
-
-.entry-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.entry-head span {
-  display: block;
-  color: #94a3b8;
-  font-size: 0.8125rem;
-}
-
-.entry-head strong {
-  color: #f8fafc;
 }
 
 label {
@@ -340,9 +321,9 @@ body.room-active .table-player-count {
 }
 
 body.room-active .poker-table {
-  flex: 1 1 auto;
-  height: auto;
-  min-height: 210px;
+  flex: 0 0 auto;
+  height: clamp(300px, 52svh, 420px);
+  min-height: 300px;
   margin: 6px 0 8px;
 }
 
