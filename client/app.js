@@ -38,6 +38,7 @@ const els = {
   roomPanel: $('roomPanel'),
   currentRoomId: $('currentRoomId'),
   playerCount: $('playerCount'),
+  roomPlayerSummary: $('roomPlayerSummary'),
   lobbyCard: $('lobbyCard'),
   bottomDock: $('bottomDock'),
   gamePhase: $('gamePhase'),
@@ -234,11 +235,21 @@ function formatActionLog(log) {
 }
 
 function tableSeatClass(index, count) {
-  if (count <= 1) return 'seat-pos-3';
-  if (count === 2) return ['seat-pos-2', 'seat-pos-4'][index] || 'seat-pos-3';
-  if (count === 3) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4'][index] || 'seat-pos-3';
-  if (count === 4) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1'][index] || 'seat-pos-5';
-  return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-5', 'seat-pos-0'][index % 6];
+  if (count <= 1) return 'seat-pos-0';
+  if (count === 2) return ['seat-pos-3', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 3) return ['seat-pos-2', 'seat-pos-4', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 4) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-0'][index] || 'seat-pos-0';
+  return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-5', 'seat-pos-6', 'seat-pos-7', 'seat-pos-8', 'seat-pos-0'][index] || 'seat-pos-0';
+}
+
+function orderSeatsForTable(seats) {
+  const list = [...(seats || [])];
+  const meIndex = list.findIndex((seat) => seat.id === myPlayerId);
+  if (meIndex >= 0) {
+    const [me] = list.splice(meIndex, 1);
+    list.push(me);
+  }
+  return list;
 }
 
 /** 仅渲染服务端 gameState */
@@ -254,6 +265,7 @@ function renderGameState(gameState) {
   window.__lastHandState = hand;
 
   els.playerCount.textContent = String(players.length);
+  els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
 
   if (!hand) {
     els.gamePhase.textContent = '大厅';
@@ -267,12 +279,13 @@ function renderGameState(gameState) {
     els.mySeatMeta.textContent = me ? (me.online ? '等待开局' : '离线保留中') : '等待入局';
     renderCards(els.myCards, []);
     els.seatList.innerHTML = '';
-    const tablePlayers = players.filter((p) => p.id !== myPlayerId);
+    const tablePlayers = orderSeatsForTable(players);
     tablePlayers.forEach((p, index) => {
       const li = document.createElement('li');
       li.className = `seat-item seat-item--lobby ${tableSeatClass(index, tablePlayers.length)}`;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
+        <div class="seat-avatar">${p.name.slice(0, 1)}</div>
         <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
         <div class="seat-meta">${p.online ? '等待开局' : '断线保留中'}</div>
       `;
@@ -306,7 +319,7 @@ function renderGameState(gameState) {
   renderCards(els.myCards, mySeat?.holeCards || []);
 
   els.seatList.innerHTML = '';
-  const tableSeats = hand.seats.filter((seat) => seat.id !== myPlayerId);
+  const tableSeats = orderSeatsForTable(hand.seats);
   tableSeats.forEach((seat, index) => {
     const li = document.createElement('li');
     li.className = `seat-item ${tableSeatClass(index, tableSeats.length)}`;
@@ -319,6 +332,7 @@ function renderGameState(gameState) {
 
     const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
+      <div class="seat-avatar">${seat.name.slice(0, 1)}</div>
       <div class="seat-head">
         <strong>${seat.name}</strong>
         ${seat.isDealer ? '<span class="tag">D</span>' : ''}

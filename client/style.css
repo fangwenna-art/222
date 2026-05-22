@@ -34,20 +34,18 @@ body {
 }
 
 body.room-active {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 body.room-active .app {
-  height: 100dvh;
-  padding: calc(8px + var(--safe-top)) 10px calc(8px + var(--safe-bottom));
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  min-height: 100dvh;
+  padding: calc(8px + var(--safe-top)) 10px calc(var(--dock-height) + var(--safe-bottom) + 16px);
 }
 
-body.has-dock:not(.room-active) .app,
-body.has-dock.bet-panel-open:not(.room-active) .app {
+body.has-dock .app,
+body.has-dock.bet-panel-open .app {
   padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 18px);
 }
 
@@ -216,11 +214,9 @@ button:disabled {
 }
 
 body.room-active .room-card {
-  flex: 1 1 auto;
-  min-height: 0;
   margin-bottom: 0;
   padding: 10px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .room-head {
@@ -287,17 +283,21 @@ body.room-active .room-head {
 }
 
 body.room-active .game-message,
-body.room-active .message,
-body.room-active .table-player-count {
+body.room-active .message {
   display: none;
 }
 
 .action-timer {
   text-align: center;
   font-size: 0.8125rem;
-  font-weight: 700;
-  color: #93c5fd;
-  margin-bottom: 14px;
+  font-weight: 800;
+  color: #cffafe;
+  margin: 2px 0 10px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(8, 47, 73, 0.82);
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  box-shadow: 0 8px 18px rgba(8, 47, 73, 0.28);
 }
 
 .action-timer.is-warning {
@@ -308,7 +308,7 @@ body.room-active .table-player-count {
   position: relative;
   height: clamp(300px, 52svh, 420px);
   min-height: 300px;
-  margin: 10px 0 12px;
+  margin: 24px 0 12px;
   border-radius: 48% / 40%;
   background:
     radial-gradient(circle at 50% 45%, rgba(34, 197, 94, 0.16), transparent 34%),
@@ -317,14 +317,14 @@ body.room-active .table-player-count {
   box-shadow:
     inset 0 0 38px rgba(0, 0, 0, 0.52),
     0 18px 42px rgba(0, 0, 0, 0.28);
-  overflow: hidden;
+  overflow: visible;
 }
 
 body.room-active .poker-table {
   flex: 0 0 auto;
   height: clamp(300px, 52svh, 420px);
   min-height: 300px;
-  margin: 6px 0 8px;
+  margin: 24px 0 10px;
 }
 
 .poker-table::before {
@@ -499,12 +499,13 @@ body.room-active .poker-table {
 
 .table-seats .seat-item {
   position: absolute;
-  width: 100px;
-  min-height: 62px;
-  padding: 8px;
-  background: rgba(15, 23, 42, 0.94);
-  border-radius: 14px;
-  border: 2px solid #334155;
+  width: 88px;
+  min-height: 66px;
+  padding: 22px 7px 7px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.32);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s, opacity 0.2s;
 }
 
@@ -540,6 +541,21 @@ body.room-active .poker-table {
   bottom: 16%;
 }
 
+.seat-pos-6 {
+  left: 3%;
+  top: 46%;
+}
+
+.seat-pos-7 {
+  right: 3%;
+  top: 46%;
+}
+
+.seat-pos-8 {
+  left: 20%;
+  bottom: 4%;
+}
+
 .bet-stack {
   position: absolute;
   left: 50%;
@@ -555,6 +571,32 @@ body.room-active .poker-table {
   font-size: 0.6875rem;
   font-weight: 900;
   text-align: center;
+}
+
+.seat-avatar {
+  position: absolute;
+  left: 50%;
+  top: -22px;
+  transform: translateX(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 25%, #fef3c7, #0f766e 58%, #0f172a);
+  border: 2px solid #1f2937;
+  color: #f8fafc;
+  font-weight: 900;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.45);
+}
+
+.seat-item.is-active .seat-avatar {
+  border-color: var(--active-color);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.35), 0 8px 18px rgba(0, 0, 0, 0.48);
+}
+
+.seat-item.is-me .seat-avatar {
+  border-color: var(--me-color);
 }
 
 .seat-status-row {
@@ -586,7 +628,10 @@ body.room-active .poker-table {
 .table-seats .seat-pos-1.is-me,
 .table-seats .seat-pos-2.is-me,
 .table-seats .seat-pos-4.is-me,
-.table-seats .seat-pos-5.is-me {
+.table-seats .seat-pos-5.is-me,
+.table-seats .seat-pos-6.is-me,
+.table-seats .seat-pos-7.is-me,
+.table-seats .seat-pos-8.is-me {
   transform: scale(1.06);
 }
 
@@ -605,7 +650,24 @@ body.room-active .poker-table {
 
 .seat-item.is-active:not(.is-me) {
   border-color: var(--active-color);
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.5);
+  box-shadow:
+    0 0 0 2px rgba(45, 212, 191, 0.65),
+    0 0 24px rgba(45, 212, 191, 0.42),
+    0 10px 22px rgba(0, 0, 0, 0.36);
+}
+
+.seat-item.is-active::before {
+  content: '行动';
+  position: absolute;
+  top: -9px;
+  right: -8px;
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #2dd4bf;
+  color: #042f2e;
+  font-size: 0.5625rem;
+  font-weight: 900;
 }
 
 .seat-item.is-active.is-me {
@@ -633,7 +695,10 @@ body.room-active .poker-table {
 .table-seats .seat-pos-1.is-folded,
 .table-seats .seat-pos-2.is-folded,
 .table-seats .seat-pos-4.is-folded,
-.table-seats .seat-pos-5.is-folded {
+.table-seats .seat-pos-5.is-folded,
+.table-seats .seat-pos-6.is-folded,
+.table-seats .seat-pos-7.is-folded,
+.table-seats .seat-pos-8.is-folded {
   transform: scale(0.96);
 }
 
@@ -645,7 +710,10 @@ body.room-active .poker-table {
 .table-seats .seat-pos-1.is-folded.is-me,
 .table-seats .seat-pos-2.is-folded.is-me,
 .table-seats .seat-pos-4.is-folded.is-me,
-.table-seats .seat-pos-5.is-folded.is-me {
+.table-seats .seat-pos-5.is-folded.is-me,
+.table-seats .seat-pos-6.is-folded.is-me,
+.table-seats .seat-pos-7.is-folded.is-me,
+.table-seats .seat-pos-8.is-folded.is-me {
   transform: scale(1);
 }
 
@@ -960,7 +1028,7 @@ body.has-dock .lobby-card {
     height: clamp(260px, 48svh, 340px);
     min-height: 260px;
     border-width: 6px;
-    margin: 6px 0 8px;
+    margin: 22px 0 8px;
   }
 
   .poker-table::before {
@@ -974,10 +1042,16 @@ body.has-dock .lobby-card {
   }
 
   .table-seats .seat-item {
-    width: 88px;
-    min-height: 54px;
-    padding: 6px;
-    border-radius: 11px;
+    width: 82px;
+    min-height: 58px;
+    padding: 20px 6px 6px;
+    border-radius: 10px;
+  }
+
+  .seat-avatar {
+    width: 36px;
+    height: 36px;
+    top: -19px;
   }
 
   .seat-head strong {
@@ -1023,12 +1097,14 @@ body.has-dock .lobby-card {
   }
 
   .seat-pos-1,
-  .seat-pos-2 {
+  .seat-pos-2,
+  .seat-pos-6 {
     left: 1.5%;
   }
 
   .seat-pos-4,
-  .seat-pos-5 {
+  .seat-pos-5,
+  .seat-pos-7 {
     right: 1.5%;
   }
 
