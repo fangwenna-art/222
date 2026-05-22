@@ -84,6 +84,13 @@ let currentSession = loadSession();
 let myPlayerId = currentSession?.playerId || null;
 let betPanelOpen = false;
 let actionLogOpen = false;
+let dockResizeObserver = null;
+
+function updateLayoutMetrics() {
+  const dockHeight = els.bottomDock.hidden ? 0 : Math.ceil(els.bottomDock.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--dock-height', `${dockHeight}px`);
+  document.documentElement.style.setProperty('--viewport-height', `${window.innerHeight}px`);
+}
 
 function loadSession() {
   try {
@@ -148,6 +155,7 @@ function renderCards(container, cards) {
 function setDockVisible(visible) {
   els.bottomDock.hidden = !visible;
   document.body.classList.toggle('has-dock', visible);
+  updateLayoutMetrics();
 }
 
 function scrollToMySeat() {
@@ -260,6 +268,7 @@ function renderGameState(gameState) {
     els.btnStartHand.disabled = players.length < 2 || !isHost;
     els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
     els.actionBar.hidden = true;
+    updateLayoutMetrics();
     return;
   }
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
@@ -354,6 +363,7 @@ function renderGameState(gameState) {
   const showBetControls = myTurn && hasAmountAction && betPanelOpen;
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
+  updateLayoutMetrics();
   els.btnAmountToggle.hidden = !hasAmountAction;
   els.btnAmountToggle.disabled = !hasAmountAction;
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);
@@ -385,6 +395,7 @@ function renderGameState(gameState) {
   els.btnCall.textContent = actions.toCall > 0 ? `跟注 ${actions.toCall}` : '跟注';
   els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
   els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
+  updateLayoutMetrics();
 }
 
 function clearRoomView() {
@@ -568,12 +579,21 @@ els.btnAmountToggle.addEventListener('click', () => {
   const showBetControls = Boolean(actions?.isActive && (actions.canBet || actions.canRaise) && betPanelOpen);
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
+  updateLayoutMetrics();
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);
 });
 els.btnHalfPot.addEventListener('click', () => quickBet('halfPot'));
 els.btnPot.addEventListener('click', () => quickBet('pot'));
 els.btnDouble.addEventListener('click', () => quickBet(2));
 els.btnTriple.addEventListener('click', () => quickBet(3));
+
+if ('ResizeObserver' in window) {
+  dockResizeObserver = new ResizeObserver(updateLayoutMetrics);
+  dockResizeObserver.observe(els.bottomDock);
+}
+window.addEventListener('resize', updateLayoutMetrics);
+window.addEventListener('orientationchange', () => window.setTimeout(updateLayoutMetrics, 150));
+updateLayoutMetrics();
 els.btnLeaveRoom.addEventListener('click', () => {
   socket.emit('room:leave', {}, (res) => {
     if (!res?.ok) {

@@ -5,8 +5,9 @@
 }
 
 :root {
-  --dock-height: 112px;
+  --dock-height: 0px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
   --app-max: 420px;
   --me-color: #fbbf24;
   --active-color: #38bdf8;
@@ -17,21 +18,20 @@ body {
   background: #0f172a;
   color: #e2e8f0;
   min-height: 100vh;
+  min-height: 100dvh;
   line-height: 1.5;
+  overflow-x: hidden;
 }
 
 .app {
   max-width: var(--app-max);
   margin: 0 auto;
-  padding: 16px 16px 24px;
+  padding: calc(12px + var(--safe-top)) 14px 24px;
 }
 
-body.has-dock .app {
-  padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 16px);
-}
-
+body.has-dock .app,
 body.has-dock.bet-panel-open .app {
-  padding-bottom: calc(176px + var(--safe-bottom));
+  padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 18px);
 }
 
 header {
@@ -236,8 +236,8 @@ button:disabled {
 
 .poker-table {
   position: relative;
-  height: clamp(320px, 58vh, 430px);
-  min-height: 320px;
+  height: clamp(300px, 52svh, 420px);
+  min-height: 300px;
   margin: 10px 0 12px;
   border-radius: 48% / 40%;
   background:
@@ -715,6 +715,9 @@ button:disabled {
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid #334155;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+  max-height: min(46svh, 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .bottom-dock .dock-btn--start {
@@ -811,4 +814,152 @@ button:disabled {
 
 body.has-dock .lobby-card {
   margin-bottom: 8px;
+}
+
+@media (max-height: 740px) {
+  .app {
+    padding-inline: 10px;
+  }
+
+  header h1 {
+    font-size: 1.15rem;
+  }
+
+  .compact-status,
+  .card {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .room-head {
+    margin-bottom: 6px;
+  }
+
+  .game-message {
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+  }
+
+  .action-timer {
+    margin-bottom: 6px;
+  }
+
+  .poker-table {
+    height: clamp(260px, 48svh, 340px);
+    min-height: 260px;
+    border-width: 6px;
+    margin: 6px 0 8px;
+  }
+
+  .poker-table::before {
+    inset: 12px;
+  }
+
+  .table-center {
+    width: min(50%, 210px);
+    gap: 5px;
+    padding: 8px;
+  }
+
+  .table-seats .seat-item {
+    width: 88px;
+    min-height: 54px;
+    padding: 6px;
+    border-radius: 11px;
+  }
+
+  .seat-head strong {
+    font-size: 0.75rem;
+    max-width: 58px;
+  }
+
+  .seat-meta,
+  #mySeatMeta {
+    font-size: 0.6875rem;
+  }
+
+  .tag {
+    font-size: 0.5rem;
+    padding: 1px 4px;
+  }
+
+  .card-chip {
+    min-width: 34px;
+    height: 45px;
+    font-size: 0.8125rem;
+    padding: 4px 6px;
+  }
+
+  .my-seat-panel {
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+
+  .my-cards .card-chip {
+    min-width: 40px;
+    height: 52px;
+  }
+}
+
+@media (max-width: 360px) {
+  :root {
+    --app-max: 100vw;
+  }
+
+  .table-seats .seat-item {
+    width: 84px;
+  }
+
+  .seat-pos-1,
+  .seat-pos-2 {
+    left: 1.5%;
+  }
+
+  .seat-pos-4,
+  .seat-pos-5 {
+    right: 1.5%;
+  }
+
+  .table-center {
+    width: min(48%, 180px);
+  }
+
+  .community-cards {
+    gap: 3px;
+  }
+
+  .community-cards .card-chip {
+    min-width: 30px;
+    height: 42px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  :root {
+    --app-max: 760px;
+  }
+
+  header,
+  .compact-status,
+  .game-message {
+    display: none;
+  }
+
+  .app {
+    padding-top: calc(8px + var(--safe-top));
+  }
+
+  .room-card {
+    padding: 8px;
+  }
+
+  .poker-table {
+    height: clamp(230px, 60svh, 310px);
+  }
+
+  .my-seat-panel {
+    grid-template-columns: minmax(0, 1fr) auto;
+    margin-bottom: 6px;
+  }
 }
