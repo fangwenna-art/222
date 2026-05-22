@@ -44,6 +44,10 @@ const els = {
   gameMessage: $('gameMessage'),
   actionTimer: $('actionTimer'),
   tableMessage: $('tableMessage'),
+  mySeatPanel: $('mySeatPanel'),
+  mySeatName: $('mySeatName'),
+  mySeatMeta: $('mySeatMeta'),
+  myCards: $('myCards'),
   communityCards: $('communityCards'),
   seatList: $('seatList'),
   winnersBox: $('winnersBox'),
@@ -201,6 +205,14 @@ function formatActionLog(log) {
   return `${PHASE_LABEL[log.phase] || log.phase} · ${name} ${label}${amount}${log.note ? `（${log.note}）` : ''}`;
 }
 
+function tableSeatClass(index, count) {
+  if (count <= 1) return 'seat-pos-3';
+  if (count === 2) return ['seat-pos-2', 'seat-pos-4'][index] || 'seat-pos-3';
+  if (count === 3) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4'][index] || 'seat-pos-3';
+  if (count === 4) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1'][index] || 'seat-pos-5';
+  return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-5', 'seat-pos-0'][index % 6];
+}
+
 /** 仅渲染服务端 gameState */
 function renderGameState(gameState) {
   if (!gameState) return;
@@ -222,10 +234,16 @@ function renderGameState(gameState) {
     els.gameMessage.textContent = '至少 2 人可开始新一局';
     els.tableMessage.textContent = '等待玩家入座';
     renderCards(els.communityCards, []);
+    const me = players.find((p) => p.id === myPlayerId);
+    els.mySeatPanel.hidden = !me;
+    els.mySeatName.textContent = me?.name || '我';
+    els.mySeatMeta.textContent = me ? (me.online ? '等待开局' : '离线保留中') : '等待入局';
+    renderCards(els.myCards, []);
     els.seatList.innerHTML = '';
-    players.forEach((p, index) => {
+    const tablePlayers = players.filter((p) => p.id !== myPlayerId);
+    tablePlayers.forEach((p, index) => {
       const li = document.createElement('li');
-      li.className = `seat-item seat-item--lobby seat-pos-${index % 6}`;
+      li.className = `seat-item seat-item--lobby ${tableSeatClass(index, tablePlayers.length)}`;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
         <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
@@ -251,10 +269,19 @@ function renderGameState(gameState) {
   renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
+  const mySeat = hand.seats.find((seat) => seat.id === myPlayerId);
+  els.mySeatPanel.hidden = !mySeat;
+  els.mySeatName.textContent = mySeat?.name || '我';
+  els.mySeatMeta.textContent = mySeat
+    ? `筹码 ${mySeat.chips} · 本轮 ${mySeat.bet}${mySeat.folded ? ' · 已弃牌' : ''}${mySeat.allIn ? ' · All-in' : ''}`
+    : '旁观中';
+  renderCards(els.myCards, mySeat?.holeCards || []);
+
   els.seatList.innerHTML = '';
-  hand.seats.forEach((seat, index) => {
+  const tableSeats = hand.seats.filter((seat) => seat.id !== myPlayerId);
+  tableSeats.forEach((seat, index) => {
     const li = document.createElement('li');
-    li.className = `seat-item seat-pos-${index % 6}`;
+    li.className = `seat-item ${tableSeatClass(index, tableSeats.length)}`;
     if (seat.id === myPlayerId) li.classList.add('is-me');
     if (seat.id === hand.activePlayerId) li.classList.add('is-active');
     if (seat.folded) li.classList.add('is-folded');
@@ -262,25 +289,23 @@ function renderGameState(gameState) {
     if (seat.online === false) li.classList.add('is-offline');
     if (seat.isDealer) li.classList.add('is-dealer');
 
-    const cardsDiv = document.createElement('div');
-    cardsDiv.className = 'seat-cards';
-    renderCards(cardsDiv, seat.holeCards);
-
     const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
       <div class="seat-head">
         <strong>${seat.name}</strong>
-        ${isHost ? '<span class="tag tag-host">房主</span>' : ''}
         ${seat.isDealer ? '<span class="tag">D</span>' : ''}
         ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
         ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
+      </div>
+      <div class="seat-meta">筹码 ${seat.chips}</div>
+      <div class="seat-status-row">
+        ${isHost ? '<span class="tag tag-host">房主</span>' : ''}
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
         ${seat.allIn ? '<span class="tag">All-in</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
-      <div class="seat-meta">筹码 ${seat.chips} · 本轮 ${seat.bet}</div>
+      ${seat.bet > 0 ? `<div class="bet-stack">${seat.bet}</div>` : ''}
     `;
-    li.appendChild(cardsDiv);
     els.seatList.appendChild(li);
   });
   scrollToMySeat();
@@ -370,6 +395,7 @@ function clearRoomView() {
   els.lobbyCard.hidden = false;
   setDockVisible(false);
   els.seatList.innerHTML = '';
+  els.mySeatPanel.hidden = true;
   clearActionTimer();
   els.playerCount.textContent = '0';
 }

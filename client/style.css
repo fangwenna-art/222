@@ -236,8 +236,8 @@ button:disabled {
 
 .poker-table {
   position: relative;
-  height: min(72vh, 520px);
-  min-height: 420px;
+  height: clamp(320px, 58vh, 430px);
+  min-height: 320px;
   margin: 10px 0 12px;
   border-radius: 48% / 40%;
   background:
@@ -264,7 +264,7 @@ button:disabled {
   left: 50%;
   top: 48%;
   transform: translate(-50%, -50%);
-  width: min(76%, 330px);
+  width: min(54%, 240px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -348,6 +348,57 @@ button:disabled {
   box-shadow: none;
 }
 
+.my-seat-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: -2px 0 10px;
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(66, 32, 6, 0.96), rgba(15, 23, 42, 0.98));
+  border: 1px solid var(--me-color);
+  box-shadow: 0 8px 20px rgba(251, 191, 36, 0.18);
+}
+
+.my-seat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.my-seat-label {
+  display: block;
+  font-size: 0.625rem;
+  color: #fcd34d;
+  letter-spacing: 0.06em;
+}
+
+.my-seat-info strong {
+  display: block;
+  font-size: 0.9375rem;
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#mySeatMeta {
+  font-size: 0.75rem;
+  color: #e2e8f0;
+}
+
+.my-cards {
+  justify-content: flex-end;
+}
+
+.my-cards .card-chip {
+  min-width: 46px;
+  height: 58px;
+  font-size: 1.0625rem;
+}
+
 .table-player-count {
   display: flex;
   align-items: center;
@@ -371,8 +422,8 @@ button:disabled {
 
 .table-seats .seat-item {
   position: absolute;
-  width: 118px;
-  min-height: 88px;
+  width: 100px;
+  min-height: 62px;
   padding: 8px;
   background: rgba(15, 23, 42, 0.94);
   border-radius: 14px;
@@ -387,13 +438,13 @@ button:disabled {
 }
 
 .seat-pos-1 {
-  left: 4%;
-  bottom: 21%;
+  left: 3%;
+  bottom: 16%;
 }
 
 .seat-pos-2 {
-  left: 4%;
-  top: 22%;
+  left: 3%;
+  top: 21%;
 }
 
 .seat-pos-3 {
@@ -403,13 +454,37 @@ button:disabled {
 }
 
 .seat-pos-4 {
-  right: 4%;
-  top: 22%;
+  right: 3%;
+  top: 21%;
 }
 
 .seat-pos-5 {
-  right: 4%;
-  bottom: 21%;
+  right: 3%;
+  bottom: 16%;
+}
+
+.bet-stack {
+  position: absolute;
+  left: 50%;
+  bottom: -16px;
+  transform: translateX(-50%);
+  min-width: 34px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  color: #422006;
+  border: 1px solid #92400e;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+  font-size: 0.6875rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.seat-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 14px;
 }
 
 .seat-item.is-me {
