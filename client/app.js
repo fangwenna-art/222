@@ -57,6 +57,7 @@ const els = {
   btnPot: $('btnPot'),
   btnDouble: $('btnDouble'),
   btnTriple: $('btnTriple'),
+  btnAmountToggle: $('btnAmountToggle'),
   btnFold: $('btnFold'),
   btnCheck: $('btnCheck'),
   btnBet: $('btnBet'),
@@ -65,7 +66,7 @@ const els = {
   btnAllIn: $('btnAllIn'),
 };
 
-els.serverUrl.textContent = SERVER_URL;
+if (els.serverUrl) els.serverUrl.textContent = SERVER_URL;
 
 const socket = io(SERVER_URL, {
   transports: window.location.protocol === 'https:' ? ['polling', 'websocket'] : ['websocket', 'polling'],
@@ -74,6 +75,7 @@ const socket = io(SERVER_URL, {
 
 let currentSession = loadSession();
 let myPlayerId = currentSession?.playerId || null;
+let betPanelOpen = false;
 
 function loadSession() {
   try {
@@ -316,8 +318,11 @@ function renderGameState(gameState) {
   const canCheckOrBet = myTurn && toCall === 0;
   const canCallOrRaise = myTurn && toCall > 0;
 
-  const showBetControls = myTurn && (canCheckOrBet || canCallOrRaise);
+  const showBetControls = myTurn && (canCheckOrBet || canCallOrRaise) && betPanelOpen;
+  document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
+  els.btnAmountToggle.hidden = !myTurn;
+  els.btnAmountToggle.classList.toggle('is-active', showBetControls);
   els.betAmount.disabled = !myTurn;
   els.betAmount.min = String(canCheckOrBet ? minBet : minRaise);
   els.betAmount.placeholder = canCheckOrBet ? `最小下注 ${minBet}` : `最小加注 ${minRaise}`;
@@ -343,6 +348,8 @@ function renderGameState(gameState) {
 }
 
 function clearRoomView() {
+  betPanelOpen = false;
+  document.body.classList.remove('bet-panel-open');
   els.roomPanel.hidden = true;
   els.lobbyCard.hidden = false;
   setDockVisible(false);
@@ -477,6 +484,8 @@ function emitAction(action, amount) {
       setMessage(res?.error || '操作失败', 'error');
       return;
     }
+    betPanelOpen = false;
+    document.body.classList.remove('bet-panel-open');
     renderGameState(res.gameState);
   });
 }
@@ -501,6 +510,15 @@ els.btnRaise.addEventListener('click', () => {
   emitAction('raise', amount);
 });
 els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.btnAmountToggle.addEventListener('click', () => {
+  betPanelOpen = !betPanelOpen;
+  const hand = getCurrentHand();
+  const myTurn = hand?.activePlayerId === myPlayerId;
+  const showBetControls = Boolean(myTurn && betPanelOpen);
+  document.body.classList.toggle('bet-panel-open', showBetControls);
+  els.betAmount.closest('.bet-controls').hidden = !showBetControls;
+  els.btnAmountToggle.classList.toggle('is-active', showBetControls);
+});
 els.btnHalfPot.addEventListener('click', () => quickBet('halfPot'));
 els.btnPot.addEventListener('click', () => quickBet('pot'));
 els.btnDouble.addEventListener('click', () => quickBet(2));

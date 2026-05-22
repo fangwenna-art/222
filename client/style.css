@@ -5,7 +5,7 @@
 }
 
 :root {
-  --dock-height: 176px;
+  --dock-height: 112px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-max: 420px;
   --me-color: #fbbf24;
@@ -30,20 +30,23 @@ body.has-dock .app {
   padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 16px);
 }
 
+body.has-dock.bet-panel-open .app {
+  padding-bottom: calc(176px + var(--safe-bottom));
+}
+
 header {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 header h1 {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   color: var(--me-color);
 }
 
-.subtitle {
-  font-size: 0.8125rem;
-  color: #94a3b8;
-  margin-top: 4px;
+.compact-status {
+  padding: 8px 12px;
+  margin-bottom: 8px;
 }
 
 .card {
@@ -163,9 +166,10 @@ button:disabled {
 
 .room-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  gap: 10px;
 }
 
 .room-head h2 {
@@ -176,6 +180,14 @@ button:disabled {
   color: var(--me-color);
   letter-spacing: 0.1em;
   font-size: 1.125rem;
+}
+
+.room-leave-btn {
+  min-height: 32px;
+  padding: 6px 10px;
+  background: #334155;
+  color: #cbd5e1;
+  font-size: 0.75rem;
 }
 
 .phase-bar {
@@ -496,15 +508,6 @@ button:disabled {
   margin-bottom: 6px;
 }
 
-.bottom-dock .dock-btn--leave {
-  width: 100%;
-  min-height: 36px;
-  margin-bottom: 6px;
-  background: #334155;
-  color: #e2e8f0;
-  font-size: 0.8125rem;
-}
-
 .bottom-dock .action-bar {
   display: flex;
   flex-direction: column;
@@ -516,6 +519,10 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #0f172a;
+  border: 1px solid #334155;
 }
 
 .bet-controls label {
@@ -540,7 +547,7 @@ button:disabled {
 
 .action-buttons {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -571,6 +578,16 @@ button:disabled {
 
 .bottom-dock #btnRaise {
   background: #38bdf8;
+  color: #0f172a;
+}
+
+.btn-secondary {
+  background: #475569;
+  color: #e2e8f0;
+}
+
+.btn-secondary.is-active {
+  background: #fde68a;
   color: #0f172a;
 }
 
