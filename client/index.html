@@ -42,22 +42,22 @@
 
       <div class="phase-bar">
         <span id="gamePhase" class="phase-tag">waiting</span>
-        <span class="pot-label">底池 <strong id="gamePot">0</strong></span>
+        <span class="pot-label">牌桌模式</span>
       </div>
       <p id="gameMessage" class="game-message">—</p>
       <p id="actionTimer" class="action-timer" hidden>—</p>
 
-      <div class="board board--center">
-        <h4>公共牌</h4>
-        <div id="communityCards" class="cards-row"></div>
+      <div class="poker-table">
+        <ul id="seatList" class="seat-list table-seats"></ul>
+        <div class="table-center">
+          <div class="table-pot">底池 <strong id="gamePot">0</strong></div>
+          <div id="communityCards" class="cards-row community-cards"></div>
+          <div class="table-message" id="tableMessage">—</div>
+        </div>
       </div>
 
-      <div class="section-label">
+      <div class="section-label table-player-count">
         <h3>玩家 <span id="playerCount">0</span></h3>
-        <span class="scroll-hint">左右滑动</span>
-      </div>
-      <div class="hscroll-wrap">
-        <ul id="seatList" class="seat-list"></ul>
       </div>
 
       <div id="winnersBox" class="winners-box" hidden>

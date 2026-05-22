@@ -43,6 +43,7 @@ const els = {
   gamePot: $('gamePot'),
   gameMessage: $('gameMessage'),
   actionTimer: $('actionTimer'),
+  tableMessage: $('tableMessage'),
   communityCards: $('communityCards'),
   seatList: $('seatList'),
   winnersBox: $('winnersBox'),
@@ -127,6 +128,8 @@ function renderCards(container, cards) {
   (cards || []).forEach((label) => {
     const span = document.createElement('span');
     span.className = 'card-chip';
+    if (label === '🂠') span.classList.add('card-chip--back');
+    if (/[♥♦]/.test(label || '')) span.classList.add('card-chip--red');
     span.textContent = label || '🂠';
     container.appendChild(span);
   });
@@ -145,7 +148,7 @@ function setDockVisible(visible) {
 
 function scrollToMySeat() {
   const me = els.seatList.querySelector('.seat-item.is-me');
-  if (me) {
+  if (me && !els.seatList.classList.contains('table-seats')) {
     me.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }
 }
@@ -217,11 +220,12 @@ function renderGameState(gameState) {
     els.gamePhase.textContent = '大厅';
     els.gamePot.textContent = '0';
     els.gameMessage.textContent = '至少 2 人可开始新一局';
+    els.tableMessage.textContent = '等待玩家入座';
     renderCards(els.communityCards, []);
     els.seatList.innerHTML = '';
-    players.forEach((p) => {
+    players.forEach((p, index) => {
       const li = document.createElement('li');
-      li.className = 'seat-item seat-item--lobby';
+      li.className = `seat-item seat-item--lobby seat-pos-${index % 6}`;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
         <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
@@ -243,13 +247,14 @@ function renderGameState(gameState) {
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
   els.gamePot.textContent = String(hand.pot);
   els.gameMessage.textContent = hand.message || '—';
+  els.tableMessage.textContent = hand.message || '—';
   renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
   els.seatList.innerHTML = '';
-  hand.seats.forEach((seat) => {
+  hand.seats.forEach((seat, index) => {
     const li = document.createElement('li');
-    li.className = 'seat-item';
+    li.className = `seat-item seat-pos-${index % 6}`;
     if (seat.id === myPlayerId) li.classList.add('is-me');
     if (seat.id === hand.activePlayerId) li.classList.add('is-active');
     if (seat.folded) li.classList.add('is-folded');
