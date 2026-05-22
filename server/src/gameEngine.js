@@ -45,6 +45,8 @@ export class GameEngine {
     this.pot = 0;
     this.currentBet = 0;
     this.dealerIndex = -1;
+    this.smallBlindId = null;
+    this.bigBlindId = null;
     this.activeIndex = 0;
     this.lastRaiserId = null;
     this.winners = [];
@@ -91,14 +93,35 @@ export class GameEngine {
     }
 
     this.dealerIndex = (this.dealerIndex + 1) % this.order.length;
-    const sbIdx = (this.dealerIndex + 1) % this.order.length;
-    const bbIdx = (this.dealerIndex + 2) % this.order.length;
-    this._postBlind(this.order[sbIdx], SMALL_BLIND);
-    this._postBlind(this.order[bbIdx], BIG_BLIND);
+    const { smallBlindIndex, bigBlindIndex, firstActorIndex } = this._blindAndFirstActorIndexes();
+    this.smallBlindId = this.order[smallBlindIndex];
+    this.bigBlindId = this.order[bigBlindIndex];
+
+    this._postBlind(this.smallBlindId, SMALL_BLIND);
+    this._postBlind(this.bigBlindId, BIG_BLIND);
     this.currentBet = BIG_BLIND;
-    this.activeIndex = (bbIdx + 1) % this.order.length;
-    this._skipFolded();
+    this.activeIndex = firstActorIndex;
+    this._skipUnavailableActors();
+    this.message = `${this.names[this.smallBlindId]} 下小盲 ${SMALL_BLIND}，${this.names[this.bigBlindId]} 下大盲 ${BIG_BLIND}`;
     return { ok: true };
+  }
+
+  _blindAndFirstActorIndexes() {
+    const n = this.order.length;
+    if (n === 2) {
+      return {
+        smallBlindIndex: this.dealerIndex,
+        bigBlindIndex: (this.dealerIndex + 1) % n,
+        firstActorIndex: this.dealerIndex,
+      };
+    }
+    const smallBlindIndex = (this.dealerIndex + 1) % n;
+    const bigBlindIndex = (this.dealerIndex + 2) % n;
+    return {
+      smallBlindIndex,
+      bigBlindIndex,
+      firstActorIndex: (bigBlindIndex + 1) % n,
+    };
   }
 
   _postBlind(playerId, amount) {
@@ -109,21 +132,23 @@ export class GameEngine {
     this.pot += pay;
   }
 
-  _activeIds() {
-    return this.order.filter((id) => !this.seats[id].folded && this.seats[id].chips >= 0);
-  }
-
-  _notFoldedIds() {
+  _playersInHand() {
     return this.order.filter((id) => !this.seats[id].folded);
   }
 
-  _skipFolded() {
+  _canAct(playerId) {
+    const seat = this.seats[playerId];
+    return seat && !seat.folded && seat.chips > 0;
+  }
+
+  _skipUnavailableActors() {
     const n = this.order.length;
     for (let i = 0; i < n; i++) {
       const id = this.order[this.activeIndex];
-      if (!this.seats[id].folded && this.seats[id].chips > 0) return;
+      if (this._canAct(id)) return;
       this.activeIndex = (this.activeIndex + 1) % n;
     }
+    this.activeIndex = -1;
   }
 
   _resetBets() {
@@ -140,7 +165,7 @@ export class GameEngine {
   }
 
   _advancePhase() {
-    const alive = this._notFoldedIds();
+    const alive = this._playersInHand();
     if (alive.length === 1) {
       this._awardPot(alive[0], '其余玩家均已弃牌');
       return;
@@ -165,12 +190,27 @@ export class GameEngine {
       return;
     }
 
-    this.activeIndex = (this.dealerIndex + 1) % this.order.length;
-    this._skipFolded();
+    this.activeIndex = this._firstPostFlopActorIndex();
+    this._skipUnavailableActors();
+  }
+
+  _firstPostFlopActorIndex() {
+    return this.order.length === 2 ? this.dealerIndex : (this.dealerIndex + 1) % this.order.length;
+  }
+
+  _nextIndexFrom(startIndex) {
+    const n = this.order.length;
+    for (let step = 1; step <= n; step++) {
+      const index = (startIndex + step) % n;
+      const id = this.order[index];
+      const seat = this.seats[id];
+      if (this._canAct(id) && (!seat.acted || seat.bet < this.currentBet)) return index;
+    }
+    return -1;
   }
 
   _roundComplete() {
-    const alive = this._notFoldedIds();
+    const alive = this._playersInHand();
     if (alive.length <= 1) return true;
     return alive.every((id) => {
       const s = this.seats[id];
@@ -180,12 +220,10 @@ export class GameEngine {
   }
 
   _nextActor() {
-    const n = this.order.length;
-    for (let i = 0; i < n; i++) {
-      this.activeIndex = (this.activeIndex + 1) % n;
-      const id = this.order[this.activeIndex];
-      const s = this.seats[id];
-      if (!s.folded && s.chips > 0 && (!s.acted || s.bet < this.currentBet)) return id;
+    const nextIndex = this._nextIndexFrom(this.activeIndex);
+    if (nextIndex >= 0) {
+      this.activeIndex = nextIndex;
+      return this.order[nextIndex];
     }
     if (this._roundComplete()) this._advancePhase();
     return null;
@@ -199,7 +237,7 @@ export class GameEngine {
     seat.folded = true;
     this.message = `${this.names[playerId]} 离开，视为弃牌`;
 
-    const alive = this._notFoldedIds();
+    const alive = this._playersInHand();
     if (alive.length === 1) {
       this._awardPot(alive[0], '对手弃牌');
       return;
@@ -258,7 +296,7 @@ export class GameEngine {
       return { ok: false, error: '未知操作' };
     }
 
-    const alive = this._notFoldedIds();
+    const alive = this._playersInHand();
     if (alive.length === 1) {
       this._awardPot(alive[0], '对手弃牌');
       return { ok: true };
@@ -285,7 +323,7 @@ export class GameEngine {
 
   _showdown() {
     this.phase = 'showdown';
-    const alive = this._notFoldedIds();
+    const alive = this._playersInHand();
     let best = null;
     const results = [];
 
@@ -325,6 +363,11 @@ export class GameEngine {
       currentBet: this.currentBet,
       activePlayerId: this.activeIndex >= 0 ? this.order[this.activeIndex] : null,
       dealerId: this.order[this.dealerIndex] ?? null,
+      smallBlindId: this.smallBlindId,
+      bigBlindId: this.bigBlindId,
+      smallBlind: SMALL_BLIND,
+      bigBlind: BIG_BLIND,
+      minRaise: RAISE_STEP,
       communityCards: this.community.map(cardLabel),
       message: this.message,
       winners: this.winners,
@@ -348,6 +391,8 @@ export class GameEngine {
           online: Boolean(this.onlineStatus?.[id] ?? true),
           holeCards,
           isDealer: id === this.order[this.dealerIndex],
+          isSmallBlind: id === this.smallBlindId,
+          isBigBlind: id === this.bigBlindId,
         };
       }),
     };

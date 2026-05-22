@@ -193,6 +193,8 @@ function renderGameState(gameState) {
       <div class="seat-head">
         <strong>${seat.name}</strong>
         ${seat.isDealer ? '<span class="tag">D</span>' : ''}
+        ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
+        ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
