@@ -27,6 +27,7 @@ function createRoom(roomId) {
     players: new Map(),
     engine: null,
     dealerSeatId: null,
+    hostPlayerId: null,
     actionTimer: null,
     actionDeadlineAt: null,
   };
@@ -82,6 +83,7 @@ export class RoomManager {
     const room = createRoom(roomId);
     const player = createPlayer(playerName);
     room.players.set(player.id, player);
+    room.hostPlayerId = player.id;
     this.rooms.set(roomId, room);
     this.tokenIndex.set(player.token, { roomId, playerId: player.id });
     return { room, player };
@@ -130,9 +132,19 @@ export class RoomManager {
     };
   }
 
-  startHand(roomId) {
+  _ensureHost(room) {
+    if (!room || room.players.has(room.hostPlayerId)) return;
+    const nextHost = Array.from(room.players.values()).find((player) => player.online) || Array.from(room.players.values())[0] || null;
+    room.hostPlayerId = nextHost?.id || null;
+  }
+
+  startHand(roomId, requesterPlayerId) {
     const room = this.rooms.get(roomId);
     if (!room) return { ok: false, error: '房间不存在' };
+    this._ensureHost(room);
+    if (room.hostPlayerId && requesterPlayerId && requesterPlayerId !== room.hostPlayerId) {
+      return { ok: false, error: '只有房主可以开始新一局' };
+    }
     if (room.engine && !room.engine.canStart()) return { ok: false, error: '当前局未结束' };
 
     const entries = [...room.players.entries()].filter(([, player]) => player.online && (player.chips ?? 1) > 0);
@@ -197,6 +209,7 @@ export class RoomManager {
     this.clearOfflineFoldTimer(player);
     this.tokenIndex.delete(player.token);
     room.players.delete(player.id);
+    this._ensureHost(room);
 
     if (room.players.size === 0) {
       this.clearActionTimer(room);
@@ -231,11 +244,13 @@ export class RoomManager {
 
     return {
       roomId: room.id,
+      hostPlayerId: room.hostPlayerId,
       players: Array.from(room.players.values()).map((p) => ({
         id: p.id,
         name: p.name,
         online: p.online,
         chips: p.chips,
+        isHost: p.id === room.hostPlayerId,
       })),
       hand: room.engine ? room.engine.toPublicState(viewerPlayerId) : null,
     };

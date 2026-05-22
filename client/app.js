@@ -219,7 +219,7 @@ function renderGameState(gameState) {
       li.className = 'seat-item seat-item--lobby';
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
-        <div class="seat-head"><strong>${p.name}</strong>${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
+        <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
         <div class="seat-meta">${p.online ? '等待开局' : '断线保留中'}</div>
       `;
       els.seatList.appendChild(li);
@@ -229,7 +229,9 @@ function renderGameState(gameState) {
     els.actionLogBox.hidden = true;
     clearActionTimer();
     els.btnStartHand.hidden = false;
-    els.btnStartHand.disabled = players.length < 2;
+    const isHost = gameState.hostPlayerId === myPlayerId;
+    els.btnStartHand.disabled = players.length < 2 || !isHost;
+    els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
     els.actionBar.hidden = true;
     return;
   }
@@ -254,9 +256,11 @@ function renderGameState(gameState) {
     cardsDiv.className = 'seat-cards';
     renderCards(cardsDiv, seat.holeCards);
 
+    const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
       <div class="seat-head">
         <strong>${seat.name}</strong>
+        ${isHost ? '<span class="tag tag-host">房主</span>' : ''}
         ${seat.isDealer ? '<span class="tag">D</span>' : ''}
         ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
         ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
@@ -296,8 +300,10 @@ function renderGameState(gameState) {
   }
 
   const canStart = hand.canStart && players.length >= 2;
+  const isHost = gameState.hostPlayerId === myPlayerId;
   els.btnStartHand.hidden = !canStart;
-  els.btnStartHand.disabled = !canStart;
+  els.btnStartHand.disabled = !canStart || !isHost;
+  els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
 
   const myTurn = hand.activePlayerId === myPlayerId;
   const inHand = hand.phase !== 'waiting' && hand.phase !== 'ended';

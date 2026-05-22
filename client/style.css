@@ -419,6 +419,11 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.tag-host {
+  background: #1d4ed8;
+  color: #bfdbfe;
+}
+
 .tag-fold {
   background: #7f1d1d;
   color: #fecaca;

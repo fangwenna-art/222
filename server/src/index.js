@@ -184,7 +184,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const result = roomManager.startHand(roomId);
+    const result = roomManager.startHand(roomId, player.id);
     if (!result.ok) {
       ack?.(result);
       return;

@@ -37,6 +37,24 @@ assert(room.engine.seats[a.id].chips === 1224, 'next hand should preserve player
 manager.clearActionTimer(room);
 
 {
+  const hostManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room: hostRoom, player: host } = hostManager.createRoom('Host');
+  const guestJoin = hostManager.joinRoom(hostRoom.id, 'Guest');
+  assert(guestJoin.ok, 'guest should join host room');
+  assert(hostRoom.hostPlayerId === host.id, 'creator should be host');
+  let denied = hostManager.startHand(hostRoom.id, guestJoin.player.id);
+  assert(!denied.ok && denied.error.includes('房主'), 'non-host should not start hand');
+  let allowed = hostManager.startHand(hostRoom.id, host.id);
+  assert(allowed.ok, 'host should start hand');
+  hostRoom.engine.phase = 'ended';
+  hostManager.clearActionTimer(hostRoom);
+  const leave = hostManager.leaveRoom(hostRoom.id, host.id);
+  assert(leave.ok, 'host should leave room');
+  assert(hostRoom.hostPlayerId === guestJoin.player.id, 'host should transfer to next player');
+  hostManager.clearActionTimer(hostRoom);
+}
+
+{
   let changedRoom = null;
   const timeoutManager = new RoomManager({
     actionTimeoutMs: 20,
