@@ -70,12 +70,22 @@ const roomManager = new RoomManager({
   onRoomChanged: (room) => broadcastGameState(room),
 });
 
+function detachSocketFromCurrentRoom(socket) {
+  if (!socket.data.roomId || !socket.data.playerId) return;
+  const { room: previousRoom, player: previousPlayer } = roomManager.getRoomAndPlayer(socket.data.roomId, socket.data.playerId);
+  if (previousRoom && previousPlayer?.socketId === socket.id) {
+    roomManager.markOffline(previousRoom.id, previousPlayer.id);
+    broadcastGameState(previousRoom);
+  }
+  socket.leave(socket.data.roomId);
+  socket.data.roomId = null;
+  socket.data.playerId = null;
+  socket.data.playerName = null;
+}
+
 function attachPlayerToSocket(socket, roomId, player) {
   if (socket.data.roomId && socket.data.playerId && socket.data.playerId !== player.id) {
-    const { room: previousRoom, player: previousPlayer } = roomManager.getRoomAndPlayer(socket.data.roomId, socket.data.playerId);
-    if (previousRoom && previousPlayer?.socketId === socket.id) {
-      roomManager.markOffline(previousRoom.id, previousPlayer.id);
-    }
+    detachSocketFromCurrentRoom(socket);
   }
 
   if (player.socketId && player.socketId !== socket.id) {
@@ -124,6 +134,7 @@ io.on('connection', (socket) => {
 
   socket.on('room:create', ({ playerName }, ack) => {
     const name = String(playerName || '').trim() || '匿名玩家';
+    detachSocketFromCurrentRoom(socket);
     const { room, player } = roomManager.createRoom(name);
 
     attachPlayerToSocket(socket, room.id, player);
@@ -137,9 +148,16 @@ io.on('connection', (socket) => {
     const id = String(roomId || '').trim().toUpperCase();
     const name = String(playerName || '').trim() || '匿名玩家';
 
-    if (socket.data.roomId && socket.data.roomId !== id) {
-      ack?.({ ok: false, error: '你已在一个房间中，请先退出当前房间' });
+    const existing = socket.data.roomId === id && socket.data.playerId
+      ? roomManager.getRoomAndPlayer(id, socket.data.playerId)
+      : null;
+    if (existing?.room && existing.player) {
+      ack?.({ ok: true, session: roomManager.buildSession(existing.player, id), gameState: buildGameState(existing.room, existing.player.id) });
       return;
+    }
+
+    if (socket.data.roomId && socket.data.roomId !== id) {
+      detachSocketFromCurrentRoom(socket);
     }
 
     const result = roomManager.joinRoom(id, name);
@@ -162,6 +180,7 @@ io.on('connection', (socket) => {
     const result = roomManager.resume(id, playerId, token);
 
     if (!result.ok) {
+      detachSocketFromCurrentRoom(socket);
       ack?.(result);
       return;
     }

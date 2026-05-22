@@ -597,6 +597,12 @@ updateLayoutMetrics();
 els.btnLeaveRoom.addEventListener('click', () => {
   socket.emit('room:leave', {}, (res) => {
     if (!res?.ok) {
+      if (res?.error === '未在房间中' || res?.error === '房间不存在') {
+        saveSession(null);
+        clearRoomView();
+        setMessage('已清理本地房间状态，请重新加入', 'success');
+        return;
+      }
       setMessage(res?.error || '退出失败', 'error');
       return;
     }
