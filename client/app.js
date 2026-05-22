@@ -2,12 +2,12 @@ function resolveServerUrl() {
   const params = new URLSearchParams(window.location.search);
   if (params.has('server')) return params.get('server');
 
-  const { protocol, hostname } = window.location;
+  const { protocol, hostname, port } = window.location;
+  if (protocol === 'https:' || port === '3010') {
+    return window.location.origin;
+  }
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return 'http://localhost:3010';
-  }
-  if (window.location.port === '3010' || window.location.protocol === 'https:') {
-    return window.location.origin;
   }
   return `${protocol}//${hostname}:3010`;
 }

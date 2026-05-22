@@ -25,8 +25,14 @@ function isPrivateHost(hostname) {
   return false;
 }
 
-function isAllowedPublicTunnel(hostname) {
-  return hostname.endsWith('.lhr.life') || hostname.endsWith('.loca.lt');
+function isAllowedPublicHost(hostname) {
+  return (
+    hostname.endsWith('.lhr.life') ||
+    hostname.endsWith('.loca.lt') ||
+    hostname.endsWith('.up.railway.app') ||
+    hostname.endsWith('.railway.app') ||
+    hostname.endsWith('.onrender.com')
+  );
 }
 
 function corsOrigin(origin, callback) {
@@ -36,7 +42,7 @@ function corsOrigin(origin, callback) {
   }
   try {
     const { hostname, protocol } = new URL(origin);
-    if ((protocol === 'http:' || protocol === 'https:') && (isAllowedPublicTunnel(hostname) || (ALLOW_LAN && isPrivateHost(hostname)))) {
+    if ((protocol === 'http:' || protocol === 'https:') && (isAllowedPublicHost(hostname) || (ALLOW_LAN && isPrivateHost(hostname)))) {
       callback(null, true);
       return;
     }
