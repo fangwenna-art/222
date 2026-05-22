@@ -57,6 +57,7 @@ export class GameEngine {
       this.seats[id] = {
         chips: START_CHIPS,
         bet: 0,
+        totalBet: 0,
         folded: false,
         allIn: false,
         holeCards: [],
@@ -88,6 +89,7 @@ export class GameEngine {
     for (const id of this.order) {
       const s = this.seats[id];
       s.bet = 0;
+      s.totalBet = 0;
       s.folded = false;
       s.allIn = false;
       s.acted = false;
@@ -131,6 +133,7 @@ export class GameEngine {
     const pay = Math.min(Math.max(0, amount), seat.chips);
     seat.chips -= pay;
     seat.bet += pay;
+    seat.totalBet += pay;
     seat.allIn = seat.chips === 0;
     this.pot += pay;
     return pay;
@@ -351,37 +354,76 @@ export class GameEngine {
     this.activeIndex = -1;
   }
 
-  _showdown() {
-    this.phase = 'showdown';
-    const alive = this._playersInHand();
-    let best = null;
-    const results = [];
+  _buildSidePots() {
+    const invested = this.order
+      .map((id) => ({ id, amount: this.seats[id].totalBet }))
+      .filter((p) => p.amount > 0)
+      .sort((a, b) => a.amount - b.amount);
 
-    for (const id of alive) {
+    const pots = [];
+    let previousLevel = 0;
+    for (const { amount } of invested) {
+      if (amount === previousLevel) continue;
+      const contributors = invested.filter((p) => p.amount >= amount).map((p) => p.id);
+      const eligible = contributors.filter((id) => !this.seats[id].folded);
+      const potAmount = (amount - previousLevel) * contributors.length;
+      if (potAmount > 0 && eligible.length > 0) {
+        pots.push({ amount: potAmount, contributors, eligible });
+      }
+      previousLevel = amount;
+    }
+    return pots;
+  }
+
+  _rankPlayers(playerIds) {
+    return playerIds.map((id) => {
       const cards = [...this.seats[id].holeCards, ...this.community];
       const score = bestHandScore(cards);
-      const handName = scoreToHandName(score);
-      results.push({ id, score, handName });
-      if (!best || compareScore(score, best.score) > 0) {
-        best = { id, score, handName };
-      }
-    }
-
-    const top = results.filter((r) => compareScore(r.score, best.score) === 0);
-    const share = Math.floor(this.pot / top.length);
-    this.winners = top.map((r) => {
-      this.seats[r.id].chips += share;
       return {
-        id: r.id,
-        name: this.names[r.id],
-        amount: share,
-        handName: r.handName,
-        reason: '摊牌比牌',
+        id,
+        score,
+        handName: scoreToHandName(score),
       };
     });
+  }
+
+  _settlePotsByShowdown() {
+    const sidePots = this._buildSidePots();
+    const payouts = new Map();
+    const winnerDetails = [];
+
+    for (const pot of sidePots) {
+      const ranked = this._rankPlayers(pot.eligible);
+      const best = ranked.reduce((top, item) => (compareScore(item.score, top.score) > 0 ? item : top), ranked[0]);
+      const winners = ranked.filter((item) => compareScore(item.score, best.score) === 0);
+      const share = Math.floor(pot.amount / winners.length);
+      const remainder = pot.amount % winners.length;
+
+      winners.forEach((winner, index) => {
+        const payout = share + (index === 0 ? remainder : 0);
+        this.seats[winner.id].chips += payout;
+        payouts.set(winner.id, (payouts.get(winner.id) ?? 0) + payout);
+        winnerDetails.push({
+          id: winner.id,
+          name: this.names[winner.id],
+          amount: payout,
+          handName: winner.handName,
+          reason: pot.amount === this.pot ? '主池摊牌' : '边池摊牌',
+          potAmount: pot.amount,
+          split: winners.length > 1,
+        });
+      });
+    }
+
+    return winnerDetails;
+  }
+
+  _showdown() {
+    this.phase = 'showdown';
+    this.winners = this._settlePotsByShowdown();
     this.pot = 0;
     this.phase = 'ended';
-    this.message = `摊牌：${this.winners.map((w) => `${w.name}(${w.handName})`).join('、')} 获胜`;
+    this.message = `摊牌：${this.winners.map((w) => `${w.name} +${w.amount}(${w.handName})`).join('、')}`;
     this.activeIndex = -1;
   }
 
@@ -417,6 +459,7 @@ export class GameEngine {
           name: this.names[id],
           chips: s.chips,
           bet: s.bet,
+          totalBet: s.totalBet,
           folded: s.folded,
           allIn: s.allIn,
           online: Boolean(this.onlineStatus?.[id] ?? true),

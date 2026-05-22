@@ -79,4 +79,17 @@ const flush = eval5([card(14, 'c'), card(11, 'c'), card(8, 'c'), card(5, 'c'), c
 const straight = eval5([card(10, 's'), card(9, 'h'), card(8, 'd'), card(7, 'c'), card(6, 's')]);
 assert(compareScore(flush, straight) > 0, '同花应大于顺子');
 
+// 同牌型按最大牌和 kicker 逐位比较
+const pairA = eval5([card(10, 's'), card(10, 'h'), card(14, 'd'), card(7, 'c'), card(3, 's')]);
+const pairB = eval5([card(10, 'd'), card(10, 'c'), card(13, 'd'), card(12, 'c'), card(9, 's')]);
+assert(compareScore(pairA, pairB) > 0, '同为一对时应按最大 kicker 比较');
+
+const twoPairA = eval5([card(14, 's'), card(14, 'h'), card(8, 'd'), card(8, 'c'), card(2, 's')]);
+const twoPairB = eval5([card(13, 's'), card(13, 'h'), card(12, 'd'), card(12, 'c'), card(14, 'd')]);
+assert(compareScore(twoPairA, twoPairB) > 0, '同为两对应先比较最大对子');
+
+const wheel = eval5([card(14, 's'), card(5, 'h'), card(4, 'd'), card(3, 'c'), card(2, 's')]);
+const sixHigh = eval5([card(6, 's'), card(5, 'd'), card(4, 'h'), card(3, 's'), card(2, 'c')]);
+assert(compareScore(sixHigh, wheel) > 0, '6高顺子应大于A-5轮子顺子');
+
 console.log('\n全部牌型测试通过');
