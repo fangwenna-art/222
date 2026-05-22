@@ -73,6 +73,10 @@ const els = {
   btnCall: $('btnCall'),
   btnRaise: $('btnRaise'),
   btnAllIn: $('btnAllIn'),
+  allInConfirm: $('allInConfirm'),
+  allInConfirmText: $('allInConfirmText'),
+  btnCancelAllIn: $('btnCancelAllIn'),
+  btnConfirmAllIn: $('btnConfirmAllIn'),
 };
 
 if (els.serverUrl) els.serverUrl.textContent = SERVER_URL;
@@ -177,6 +181,23 @@ function setDockVisible(visible) {
   els.bottomDock.hidden = !visible;
   document.body.classList.toggle('has-dock', visible);
   updateLayoutMetrics();
+}
+
+function syncDockVisibility() {
+  setDockVisible(!els.btnStartHand.hidden || !els.actionBar.hidden || !els.allInConfirm.hidden);
+}
+
+function hideAllInConfirm() {
+  els.allInConfirm.hidden = true;
+  syncDockVisibility();
+}
+
+function showAllInConfirm() {
+  const hand = getCurrentHand();
+  const seat = hand?.seats?.find((s) => s.id === myPlayerId);
+  els.allInConfirmText.textContent = `你将投入全部 ${seat?.chips ?? ''} 筹码`;
+  els.allInConfirm.hidden = false;
+  syncDockVisibility();
 }
 
 function scrollToMySeat() {
@@ -300,7 +321,8 @@ function renderGameState(gameState) {
     els.btnStartHand.disabled = players.length < 2 || !isHost;
     els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
     els.actionBar.hidden = true;
-    updateLayoutMetrics();
+    els.allInConfirm.hidden = true;
+    syncDockVisibility();
     return;
   }
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
@@ -320,6 +342,7 @@ function renderGameState(gameState) {
 
   els.seatList.innerHTML = '';
   const tableSeats = orderSeatsForTable(hand.seats);
+  const winnerIds = new Set((hand.winners || []).map((w) => w.id));
   tableSeats.forEach((seat, index) => {
     const li = document.createElement('li');
     li.className = `seat-item ${tableSeatClass(index, tableSeats.length)}`;
@@ -329,6 +352,7 @@ function renderGameState(gameState) {
     if (seat.allIn) li.classList.add('is-allin');
     if (seat.online === false) li.classList.add('is-offline');
     if (seat.isDealer) li.classList.add('is-dealer');
+    if (winnerIds.has(seat.id)) li.classList.add('is-winner');
 
     const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
@@ -339,7 +363,7 @@ function renderGameState(gameState) {
         ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
         ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
       </div>
-      <div class="seat-meta">筹码 ${seat.chips}</div>
+      <div class="seat-meta">筹码 ${seat.chips}${seat.bet > 0 ? ` · 本轮 ${seat.bet}` : ''}</div>
       <div class="seat-status-row">
         ${isHost ? '<span class="tag tag-host">房主</span>' : ''}
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
@@ -390,6 +414,7 @@ function renderGameState(gameState) {
   const actions = hand.availableActions || {};
   const myTurn = Boolean(actions.isActive);
   const inHand = hand.phase !== 'waiting' && hand.phase !== 'ended';
+  if (!myTurn || !inHand) els.allInConfirm.hidden = true;
   const hasAmountAction = Boolean(actions.canBet || actions.canRaise);
   els.actionBar.hidden = !myTurn || !inHand;
 
@@ -428,7 +453,7 @@ function renderGameState(gameState) {
   els.btnCall.textContent = actions.toCall > 0 ? `跟注 ${actions.toCall}` : '跟注';
   els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
   els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
-  updateLayoutMetrics();
+  syncDockVisibility();
 }
 
 function clearRoomView() {
@@ -439,6 +464,7 @@ function clearRoomView() {
   setDockVisible(false);
   els.seatList.innerHTML = '';
   els.mySeatPanel.hidden = true;
+  els.allInConfirm.hidden = true;
   clearActionTimer();
   els.playerCount.textContent = '0';
 }
@@ -581,6 +607,7 @@ function emitAction(action, amount) {
       return;
     }
     betPanelOpen = false;
+    els.allInConfirm.hidden = true;
     document.body.classList.remove('bet-panel-open');
     renderGameState(res.gameState);
   });
@@ -605,7 +632,9 @@ els.btnRaise.addEventListener('click', () => {
   }
   emitAction('raise', amount);
 });
-els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.btnAllIn.addEventListener('click', showAllInConfirm);
+els.btnCancelAllIn.addEventListener('click', hideAllInConfirm);
+els.btnConfirmAllIn.addEventListener('click', () => emitAction('allin'));
 els.btnToggleLogs.addEventListener('click', () => {
   actionLogOpen = !actionLogOpen;
   els.actionLogList.hidden = !actionLogOpen;
@@ -625,6 +654,7 @@ els.btnAmountToggle.addEventListener('click', () => {
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
   updateLayoutMetrics();
+  syncDockVisibility();
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);
 });
 els.btnHalfPot.addEventListener('click', () => quickBet('halfPot'));

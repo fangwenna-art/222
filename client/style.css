@@ -677,6 +677,37 @@ body.room-active .poker-table {
     0 6px 20px rgba(251, 191, 36, 0.35);
 }
 
+.seat-item.is-winner {
+  border-color: #facc15;
+  box-shadow:
+    0 0 0 2px rgba(250, 204, 21, 0.7),
+    0 0 26px rgba(250, 204, 21, 0.5),
+    0 10px 22px rgba(0, 0, 0, 0.36);
+}
+
+.seat-item.is-winner::before {
+  content: '赢家';
+  position: absolute;
+  top: -9px;
+  right: -8px;
+  z-index: 2;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #422006;
+  font-size: 0.5625rem;
+  font-weight: 900;
+}
+
+.seat-item.is-winner.is-active::before {
+  content: '赢家';
+}
+
+.seat-item.is-winner .seat-avatar {
+  border-color: #facc15;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.35), 0 8px 18px rgba(0, 0, 0, 0.48);
+}
+
 .seat-item.is-offline {
   opacity: 0.58;
   border-style: dashed;
@@ -900,6 +931,37 @@ body.room-active .poker-table {
   overscroll-behavior: contain;
 }
 
+.all-in-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.98), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(248, 113, 113, 0.65);
+  color: #fee2e2;
+  box-shadow: 0 -4px 18px rgba(239, 68, 68, 0.24);
+}
+
+.all-in-confirm strong {
+  font-size: 0.9375rem;
+}
+
+.all-in-confirm span {
+  font-size: 0.8125rem;
+  color: #fecaca;
+}
+
+.all-in-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 8px;
+}
+
+.all-in-confirm-actions button {
+  min-height: 40px;
+}
+
 .bottom-dock .dock-btn--start {
   width: 100%;
   min-height: 42px;
@@ -1085,8 +1147,11 @@ body.has-dock .lobby-card {
     min-width: 40px;
     height: 52px;
   }
-}
 
+  .action-log-box ul {
+    max-height: 56px;
+  }
+}
 @media (max-width: 360px) {
   :root {
     --app-max: 100vw;
