@@ -29,6 +29,19 @@ body {
   padding: calc(12px + var(--safe-top)) 14px 24px;
 }
 
+body.room-active {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.room-active .app {
+  height: 100dvh;
+  padding: calc(8px + var(--safe-top)) 10px calc(var(--dock-height) + var(--safe-bottom) + 8px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 body.has-dock .app,
 body.has-dock.bet-panel-open .app {
   padding-bottom: calc(var(--dock-height) + var(--safe-bottom) + 18px);
@@ -39,9 +52,23 @@ header {
   margin-bottom: 8px;
 }
 
+body.room-active header {
+  display: none;
+}
+
 header h1 {
   font-size: 1.35rem;
   color: var(--me-color);
+}
+
+.connection-badge {
+  position: fixed;
+  top: calc(8px + var(--safe-top));
+  left: 8px;
+  z-index: 500;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .compact-status {
@@ -164,12 +191,31 @@ button:disabled {
 .message--error { color: #fca5a5; }
 .message--success { color: #86efac; }
 
+.room-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.room-active .room-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
+  padding: 10px;
+  overflow: hidden;
+}
+
 .room-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
   gap: 10px;
+}
+
+body.room-active .room-head {
+  margin-bottom: 6px;
+  padding-left: 76px;
 }
 
 .room-head h2 {
@@ -222,6 +268,11 @@ button:disabled {
   text-align: center;
 }
 
+body.room-active .game-message,
+body.room-active .table-player-count {
+  display: none;
+}
+
 .action-timer {
   text-align: center;
   font-size: 0.8125rem;
@@ -248,6 +299,13 @@ button:disabled {
     inset 0 0 38px rgba(0, 0, 0, 0.52),
     0 18px 42px rgba(0, 0, 0, 0.28);
   overflow: hidden;
+}
+
+body.room-active .poker-table {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 210px;
+  margin: 6px 0 8px;
 }
 
 .poker-table::before {
@@ -638,28 +696,61 @@ button:disabled {
 }
 
 .winners-box {
-  padding: 10px;
-  background: #14532d;
-  border-radius: 8px;
-  margin-top: 8px;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #f59e0b, #facc15 46%, #fde68a);
+  border-radius: 14px;
+  margin-top: 4px;
+  border: 1px solid #fef3c7;
+  box-shadow: 0 10px 28px rgba(250, 204, 21, 0.36);
+  color: #422006;
 }
 
-.action-log-box {
-  padding: 0;
-  margin-top: 6px;
-  background: transparent;
-}
-
-.winners-box h4 {
-  font-size: 0.8125rem;
-  color: #86efac;
-  margin-bottom: 6px;
+.winner-kicker {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  opacity: 0.8;
+  margin-bottom: 4px;
 }
 
 .winners-box ul {
   list-style: none;
-  font-size: 0.8125rem;
-  color: #bbf7d0;
+  display: grid;
+  gap: 4px;
+}
+
+.winners-box li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.winners-box li strong {
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.winners-box li span {
+  font-size: 1.1rem;
+  font-weight: 1000;
+}
+
+.winners-box li small {
+  grid-column: 1 / -1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.action-log-box {
+  flex: 0 0 auto;
+  padding: 0;
+  margin-top: 6px;
+  background: transparent;
 }
 
 .log-summary {
@@ -692,6 +783,8 @@ button:disabled {
   border: 1px solid #334155;
   font-size: 0.75rem;
   color: #cbd5e1;
+  max-height: 74px;
+  overflow-y: auto;
 }
 
 .action-log-box li + li {

@@ -121,7 +121,7 @@ function rememberSession(res) {
 
 function setStatus(text, type = 'offline') {
   els.connectionStatus.textContent = text;
-  els.connectionStatus.className = `badge badge--${type}`;
+  els.connectionStatus.className = `badge connection-badge badge--${type}`;
 }
 
 function setMessage(text, type = '') {
@@ -227,6 +227,7 @@ function renderGameState(gameState) {
 
   els.roomPanel.hidden = false;
   els.lobbyCard.hidden = true;
+  document.body.classList.add('room-active');
   setDockVisible(true);
   els.currentRoomId.textContent = gameState.roomId;
   els.roomId.value = gameState.roomId;
@@ -322,9 +323,9 @@ function renderGameState(gameState) {
   if (hand.winners?.length) {
     els.winnersBox.hidden = false;
     els.winnersList.innerHTML = '';
-    hand.winners.forEach((w) => {
+    hand.winners.forEach((w, index) => {
       const li = document.createElement('li');
-      li.textContent = `${w.name} +${w.amount}（${w.handName || w.reason}）`;
+      li.innerHTML = `<strong>${index === 0 ? '赢家 ' : ''}${w.name}</strong><span>+${w.amount}</span><small>${w.handName || w.reason}</small>`;
       els.winnersList.appendChild(li);
     });
   } else {
@@ -404,6 +405,7 @@ function clearRoomView() {
   document.body.classList.remove('bet-panel-open');
   els.roomPanel.hidden = true;
   els.lobbyCard.hidden = false;
+  document.body.classList.remove('room-active');
   setDockVisible(false);
   els.seatList.innerHTML = '';
   els.mySeatPanel.hidden = true;

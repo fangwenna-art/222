@@ -7,14 +7,11 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <span id="connectionStatus" class="badge badge--offline connection-badge">未连接</span>
   <div class="app">
     <header>
       <h1>德州扑克</h1>
     </header>
-
-    <section class="card status-card compact-status">
-      <span id="connectionStatus" class="badge badge--offline">未连接</span>
-    </section>
 
     <section class="card lobby-card" id="lobbyCard">
       <label for="playerName">昵称</label>
@@ -72,7 +69,7 @@
       </div>
 
       <div id="winnersBox" class="winners-box" hidden>
-        <h4>本局结果</h4>
+        <div class="winner-kicker">本局结果</div>
         <ul id="winnersList"></ul>
       </div>
 
