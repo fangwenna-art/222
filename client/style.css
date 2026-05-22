@@ -206,8 +206,20 @@ button:disabled {
 .game-message {
   font-size: 0.8125rem;
   color: #cbd5e1;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   text-align: center;
+}
+
+.action-timer {
+  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #93c5fd;
+  margin-bottom: 14px;
+}
+
+.action-timer.is-warning {
+  color: #fca5a5;
 }
 
 .board--center {

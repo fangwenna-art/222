@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { GameEngine } from './gameEngine.js';
 
 const OFFLINE_AUTO_FOLD_MS = Number(process.env.OFFLINE_AUTO_FOLD_MS || 30000);
+const ACTION_TIMEOUT_MS = Number(process.env.ACTION_TIMEOUT_MS || 30000);
 
 function generateRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -26,14 +27,54 @@ function createRoom(roomId) {
     players: new Map(),
     engine: null,
     dealerSeatId: null,
+    actionTimer: null,
+    actionDeadlineAt: null,
   };
 }
 
 export class RoomManager {
-  constructor({ onRoomChanged } = {}) {
+  constructor({ onRoomChanged, actionTimeoutMs = ACTION_TIMEOUT_MS } = {}) {
     this.rooms = new Map();
     this.tokenIndex = new Map();
     this.onRoomChanged = onRoomChanged || (() => {});
+    this.actionTimeoutMs = actionTimeoutMs;
+  }
+
+  _scheduleActionTimer(room) {
+    this.clearActionTimer(room);
+    const engine = room?.engine;
+    const activePlayerId = engine?.activeIndex >= 0 ? engine.order[engine.activeIndex] : null;
+    if (!engine || engine.canStart() || !activePlayerId) return;
+
+    room.actionDeadlineAt = Date.now() + this.actionTimeoutMs;
+    engine.actionDeadlineAt = room.actionDeadlineAt;
+    engine.actionTimeoutMs = this.actionTimeoutMs;
+    room.actionTimer = setTimeout(() => {
+      const latestRoom = this.rooms.get(room.id);
+      const latestEngine = latestRoom?.engine;
+      const latestActivePlayerId = latestEngine?.activeIndex >= 0 ? latestEngine.order[latestEngine.activeIndex] : null;
+      if (!latestRoom || !latestEngine || latestEngine.canStart() || latestActivePlayerId !== activePlayerId) return;
+
+      const seat = latestEngine.seats[activePlayerId];
+      const toCall = seat ? Math.max(0, latestEngine.currentBet - seat.bet) : 0;
+      if (toCall === 0) {
+        latestEngine.applyAction(activePlayerId, 'check');
+      } else {
+        latestEngine.forceFold(activePlayerId, '行动超时');
+      }
+      this.syncChipsFromEngine(latestRoom);
+      this._scheduleActionTimer(latestRoom);
+      this.onRoomChanged(latestRoom);
+    }, this.actionTimeoutMs);
+  }
+
+  clearActionTimer(room) {
+    if (room?.actionTimer) {
+      clearTimeout(room.actionTimer);
+      room.actionTimer = null;
+    }
+    if (room) room.actionDeadlineAt = null;
+    if (room?.engine) room.engine.actionDeadlineAt = null;
   }
 
   createRoom(playerName) {
@@ -106,6 +147,7 @@ export class RoomManager {
     room.engine = engine;
     room.dealerSeatId = engine.getDealerId();
     this.syncChipsFromEngine(room);
+    this._scheduleActionTimer(room);
     return { ok: true, room };
   }
 
@@ -113,6 +155,7 @@ export class RoomManager {
     if (!room?.engine) return { ok: false, error: '牌局未开始' };
     const result = room.engine.applyAction(player.id, action, amount);
     this.syncChipsFromEngine(room);
+    this._scheduleActionTimer(room);
     return result;
   }
 
@@ -131,8 +174,9 @@ export class RoomManager {
         const latestRoom = this.rooms.get(roomId);
         const latestPlayer = latestRoom?.players.get(playerId);
         if (!latestRoom || !latestPlayer || latestPlayer.online) return;
-        latestRoom.engine?.forceFold(playerId);
+        latestRoom.engine?.forceFold(playerId, '离线超时');
         this.syncChipsFromEngine(latestRoom);
+        this._scheduleActionTimer(latestRoom);
         this.onRoomChanged(latestRoom);
       }, OFFLINE_AUTO_FOLD_MS);
     }
@@ -145,8 +189,9 @@ export class RoomManager {
     if (!room || !player) return { ok: false, error: '未在房间中' };
 
     if (room.engine && !room.engine.canStart()) {
-      room.engine.forceFold(player.id);
+      room.engine.forceFold(player.id, '离开房间');
       this.syncChipsFromEngine(room);
+      this._scheduleActionTimer(room);
     }
 
     this.clearOfflineFoldTimer(player);
@@ -154,6 +199,7 @@ export class RoomManager {
     room.players.delete(player.id);
 
     if (room.players.size === 0) {
+      this.clearActionTimer(room);
       this.rooms.delete(roomId);
       return { ok: true, roomRemoved: true, room, player };
     }
@@ -204,6 +250,7 @@ export class RoomManager {
         this.clearOfflineFoldTimer(player);
         this.tokenIndex.delete(player.token);
       }
+      this.clearActionTimer(room);
       this.rooms.delete(roomId);
       return true;
     }

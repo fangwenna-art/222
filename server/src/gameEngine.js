@@ -52,6 +52,8 @@ export class GameEngine {
     this.lastRaiserId = null;
     this.winners = [];
     this.actionLogs = [];
+    this.actionDeadlineAt = null;
+    this.actionTimeoutMs = 0;
     this.message = '等待开始新一局';
     this.onlineStatus = {};
     this.seats = {};
@@ -102,6 +104,7 @@ export class GameEngine {
     this.lastRaiseAmount = BIG_BLIND;
     this.winners = [];
     this.actionLogs = [];
+    this.actionDeadlineAt = null;
     this.lastRaiserId = null;
     this.message = '新一局开始';
 
@@ -315,14 +318,14 @@ export class GameEngine {
     return null;
   }
 
-  forceFold(playerId) {
+  forceFold(playerId, reason = '离开，视为弃牌') {
     const seat = this.seats[playerId];
     if (!seat || seat.folded) return;
     if (this.phase === 'waiting' || this.phase === 'ended') return;
 
     seat.folded = true;
-    this._log(playerId, 'fold', 0, '离线/离开自动弃牌');
-    this.message = `${this.names[playerId]} 离开，视为弃牌`;
+    this._log(playerId, 'fold', 0, reason);
+    this.message = `${this.names[playerId]} ${reason}`;
 
     const alive = this._playersInHand();
     if (alive.length === 1) {
@@ -541,6 +544,8 @@ export class GameEngine {
       pot: this.pot,
       currentBet: this.currentBet,
       activePlayerId: this.activeIndex >= 0 ? this.order[this.activeIndex] : null,
+      actionDeadlineAt: this.activeIndex >= 0 && !this.canStart() ? this.actionDeadlineAt : null,
+      actionTimeoutMs: this.actionTimeoutMs,
       dealerId: this.order[this.dealerIndex] ?? null,
       smallBlindId: this.smallBlindId,
       bigBlindId: this.bigBlindId,

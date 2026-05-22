@@ -42,6 +42,7 @@ const els = {
   gamePhase: $('gamePhase'),
   gamePot: $('gamePot'),
   gameMessage: $('gameMessage'),
+  actionTimer: $('actionTimer'),
   communityCards: $('communityCards'),
   seatList: $('seatList'),
   winnersBox: $('winnersBox'),
@@ -144,6 +145,33 @@ function scrollToMySeat() {
   }
 }
 
+let actionTimerInterval = null;
+
+function clearActionTimer() {
+  if (actionTimerInterval) {
+    window.clearInterval(actionTimerInterval);
+    actionTimerInterval = null;
+  }
+  els.actionTimer.hidden = true;
+}
+
+function renderActionTimer(hand) {
+  clearActionTimer();
+  if (!hand?.actionDeadlineAt || !hand.activePlayerId) return;
+
+  const activeSeat = hand.seats.find((s) => s.id === hand.activePlayerId);
+  const update = () => {
+    const remainMs = Math.max(0, hand.actionDeadlineAt - Date.now());
+    const remainSec = Math.ceil(remainMs / 1000);
+    els.actionTimer.hidden = false;
+    els.actionTimer.textContent = `轮到 ${activeSeat?.name || '玩家'} · 剩余 ${remainSec}s${hand.activePlayerId === myPlayerId ? ' · 到时自动操作' : ''}`;
+    els.actionTimer.classList.toggle('is-warning', remainSec <= 5);
+    if (remainMs <= 0) window.clearInterval(actionTimerInterval);
+  };
+  update();
+  actionTimerInterval = window.setInterval(update, 250);
+}
+
 function formatActionLog(log) {
   const name = log.playerName || '系统';
   const amount = log.amount ? ` ${log.amount}` : '';
@@ -199,6 +227,7 @@ function renderGameState(gameState) {
     scrollToMySeat();
     els.winnersBox.hidden = true;
     els.actionLogBox.hidden = true;
+    clearActionTimer();
     els.btnStartHand.hidden = false;
     els.btnStartHand.disabled = players.length < 2;
     els.actionBar.hidden = true;
@@ -207,6 +236,7 @@ function renderGameState(gameState) {
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
   els.gamePot.textContent = String(hand.pot);
   els.gameMessage.textContent = hand.message || '—';
+  renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
   els.seatList.innerHTML = '';
@@ -305,6 +335,7 @@ function clearRoomView() {
   els.lobbyCard.hidden = false;
   setDockVisible(false);
   els.seatList.innerHTML = '';
+  clearActionTimer();
   els.playerCount.textContent = '0';
 }
 

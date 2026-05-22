@@ -4,7 +4,7 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-const manager = new RoomManager();
+const manager = new RoomManager({ actionTimeoutMs: 1000000 });
 const { room, player: a } = manager.createRoom('A');
 const joinB = manager.joinRoom(room.id, 'B');
 const joinC = manager.joinRoom(room.id, 'C');
@@ -34,5 +34,27 @@ result = manager.startHand(room.id);
 assert(result.ok, 'third hand should start');
 assert(room.engine.getDealerId() === c.id, 'third dealer should rotate to next player');
 assert(room.engine.seats[a.id].chips === 1224, 'next hand should preserve player chips before posting blinds');
+manager.clearActionTimer(room);
+
+{
+  let changedRoom = null;
+  const timeoutManager = new RoomManager({
+    actionTimeoutMs: 20,
+    onRoomChanged: (updatedRoom) => {
+      changedRoom = updatedRoom;
+    },
+  });
+  const { room: timeoutRoom } = timeoutManager.createRoom('A');
+  const joined = timeoutManager.joinRoom(timeoutRoom.id, 'B');
+  assert(joined.ok, 'timeout room should accept B');
+  const started = timeoutManager.startHand(timeoutRoom.id);
+  assert(started.ok, 'timeout hand should start');
+  const firstActorId = timeoutRoom.engine.order[timeoutRoom.engine.activeIndex];
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert(changedRoom === timeoutRoom, 'timeout should broadcast changed room');
+  assert(timeoutRoom.engine.seats[firstActorId].folded || timeoutRoom.engine.seats[firstActorId].acted, 'timeout should auto act for active player');
+  assert(timeoutRoom.engine.actionLogs.some((log) => log.note === '行动超时' || log.action === 'check'), 'timeout should be logged');
+  timeoutManager.clearActionTimer(timeoutRoom);
+}
 
 console.log('全部房间控制测试通过');
