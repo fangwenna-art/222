@@ -1,11 +1,10 @@
 import express from 'express';
 import { createServer } from 'http';
-import { randomUUID } from 'crypto';
+import { RoomManager } from './roomManager.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 import cors from 'cors';
-import { GameEngine } from './gameEngine.js';
 
 const PORT = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
@@ -67,39 +66,15 @@ const io = new Server(httpServer, {
   },
 });
 
-/** @type {Map<string, { id: string, players: Map<string, { id: string, name: string, token: string, socketId: string | null, online: boolean }>, engine: GameEngine | null }>} */
-const rooms = new Map();
-const tokenIndex = new Map();
-
-function generateRoomId() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
-function createRoom(roomId) {
-  return {
-    id: roomId,
-    players: new Map(),
-    engine: null,
-  };
-}
-
-function createPlayer(name) {
-  return {
-    id: randomUUID(),
-    token: randomUUID(),
-    name,
-    socketId: null,
-    online: true,
-  };
-}
+const roomManager = new RoomManager({
+  onRoomChanged: (room) => broadcastGameState(room),
+});
 
 function attachPlayerToSocket(socket, roomId, player) {
   if (socket.data.roomId && socket.data.playerId && socket.data.playerId !== player.id) {
-    const previousRoom = rooms.get(socket.data.roomId);
-    const previousPlayer = previousRoom?.players.get(socket.data.playerId);
-    if (previousPlayer?.socketId === socket.id) {
-      previousPlayer.socketId = null;
-      previousPlayer.online = false;
+    const { room: previousRoom, player: previousPlayer } = roomManager.getRoomAndPlayer(socket.data.roomId, socket.data.playerId);
+    if (previousRoom && previousPlayer?.socketId === socket.id) {
+      roomManager.markOffline(previousRoom.id, previousPlayer.id);
     }
   }
 
@@ -109,48 +84,22 @@ function attachPlayerToSocket(socket, roomId, player) {
     oldSocket?.disconnect(true);
   }
 
+  roomManager.clearOfflineFoldTimer(player);
   player.socketId = socket.id;
   player.online = true;
+  player.offlineAt = null;
   socket.join(roomId);
   socket.data.roomId = roomId;
   socket.data.playerId = player.id;
   socket.data.playerName = player.name;
 }
 
-function buildSession(player, roomId) {
-  return {
-    roomId,
-    playerId: player.id,
-    token: player.token,
-    playerName: player.name,
-  };
-}
-
 function getRoomAndPlayer(socket) {
-  const roomId = socket.data.roomId;
-  const playerId = socket.data.playerId;
-  if (!roomId || !playerId) return { roomId: null, room: null, player: null };
-  const room = rooms.get(roomId);
-  const player = room?.players.get(playerId) ?? null;
-  return { roomId, room, player };
+  return roomManager.getRoomAndPlayer(socket.data.roomId, socket.data.playerId);
 }
 
 function buildGameState(room, viewerPlayerId) {
-  if (room.engine) {
-    room.engine.onlineStatus = Object.fromEntries(
-      Array.from(room.players.values()).map((p) => [p.id, p.online]),
-    );
-  }
-
-  return {
-    roomId: room.id,
-    players: Array.from(room.players.values()).map((p) => ({
-      id: p.id,
-      name: p.name,
-      online: p.online,
-    })),
-    hand: room.engine ? room.engine.toPublicState(viewerPlayerId) : null,
-  };
+  return roomManager.buildGameState(room, viewerPlayerId);
 }
 
 function emitGameStateToPlayer(room, player) {
@@ -170,80 +119,51 @@ function syncRoom(room) {
   return buildGameState(room, null);
 }
 
-function cleanupRoomIfEmpty(roomId, room) {
-  const hasOnlinePlayers = Array.from(room.players.values()).some((player) => player.online);
-  if (hasOnlinePlayers) return false;
-
-  if (!room.engine || room.engine.canStart()) {
-    for (const player of room.players.values()) {
-      tokenIndex.delete(player.token);
-    }
-    rooms.delete(roomId);
-    console.log(`[room:empty] removed ${roomId}`);
-    return true;
-  }
-
-  return false;
-}
-
 io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
 
   socket.on('room:create', ({ playerName }, ack) => {
     const name = String(playerName || '').trim() || '匿名玩家';
-    const roomId = generateRoomId();
-    const room = createRoom(roomId);
-    const player = createPlayer(name);
+    const { room, player } = roomManager.createRoom(name);
 
-    attachPlayerToSocket(socket, roomId, player);
-    room.players.set(player.id, player);
-    rooms.set(roomId, room);
-    tokenIndex.set(player.token, { roomId, playerId: player.id });
+    attachPlayerToSocket(socket, room.id, player);
 
     const gameState = syncRoom(room);
-    ack?.({ ok: true, session: buildSession(player, roomId), gameState: buildGameState(room, player.id) });
-    console.log(`[room:create] ${roomId} by ${name}`);
+    ack?.({ ok: true, session: roomManager.buildSession(player, room.id), gameState: buildGameState(room, player.id) });
+    console.log(`[room:create] ${room.id} by ${name}`);
   });
 
   socket.on('room:join', ({ roomId, playerName }, ack) => {
     const id = String(roomId || '').trim().toUpperCase();
     const name = String(playerName || '').trim() || '匿名玩家';
-    const room = rooms.get(id);
+    const result = roomManager.joinRoom(id, name);
 
-    if (!room) {
-      ack?.({ ok: false, error: '房间不存在' });
+    if (!result.ok) {
+      ack?.(result);
       return;
     }
 
-    if (socket.data.roomId && socket.data.roomId !== id) {
-      ack?.({ ok: false, error: '你已在一个房间中，请先断开重连' });
-      return;
-    }
-
-    const player = createPlayer(name);
+    const { room, player } = result;
     attachPlayerToSocket(socket, id, player);
-    room.players.set(player.id, player);
-    tokenIndex.set(player.token, { roomId: id, playerId: player.id });
 
     syncRoom(room);
-    ack?.({ ok: true, session: buildSession(player, id), gameState: buildGameState(room, player.id) });
+    ack?.({ ok: true, session: roomManager.buildSession(player, id), gameState: buildGameState(room, player.id) });
     console.log(`[room:join] ${id} <- ${name}`);
   });
 
   socket.on('room:resume', ({ roomId, playerId, token }, ack) => {
     const id = String(roomId || '').trim().toUpperCase();
-    const saved = tokenIndex.get(String(token || ''));
-    const room = rooms.get(id);
-    const player = room?.players.get(String(playerId || ''));
+    const result = roomManager.resume(id, playerId, token);
 
-    if (!saved || saved.roomId !== id || saved.playerId !== player?.id || !room || !player) {
-      ack?.({ ok: false, error: '无法恢复会话，请重新加入房间' });
+    if (!result.ok) {
+      ack?.(result);
       return;
     }
 
+    const { room, player } = result;
     attachPlayerToSocket(socket, id, player);
     syncRoom(room);
-    ack?.({ ok: true, session: buildSession(player, id), gameState: buildGameState(room, player.id) });
+    ack?.({ ok: true, session: roomManager.buildSession(player, id), gameState: buildGameState(room, player.id) });
     console.log(`[room:resume] ${id} <- ${player.name}`);
   });
 
@@ -258,16 +178,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.engine && !room.engine.canStart()) {
-      ack?.({ ok: false, error: '当前局未结束' });
-      return;
-    }
-
-    const entries = [...room.players.entries()].filter(([, p]) => p.online);
-    room.engine = new GameEngine(roomId, entries);
-    const result = room.engine.startHand();
+    const result = roomManager.startHand(roomId);
     if (!result.ok) {
-      room.engine = null;
       ack?.(result);
       return;
     }
@@ -288,7 +200,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const result = room.engine.applyAction(player.id, action, amount);
+    const result = roomManager.applyAction(room, player, action, amount);
     if (!result.ok) {
       ack?.(result);
       return;
@@ -305,19 +217,18 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.engine && !room.engine.canStart()) {
-      room.engine.forceFold(player.id);
+    const result = roomManager.leaveRoom(roomId, player.id);
+    if (!result.ok) {
+      ack?.(result);
+      return;
     }
 
-    tokenIndex.delete(player.token);
-    room.players.delete(player.id);
     socket.leave(roomId);
     socket.data.roomId = null;
     socket.data.playerId = null;
     socket.data.playerName = null;
 
-    if (room.players.size === 0) {
-      rooms.delete(roomId);
+    if (result.roomRemoved) {
       ack?.({ ok: true });
       console.log(`[room:leave] ${player.name} left and removed ${roomId}`);
       return;
@@ -334,12 +245,10 @@ io.on('connection', (socket) => {
 
     if (player.socketId !== socket.id) return;
 
-    player.socketId = null;
-    player.online = false;
+    const offlineResult = roomManager.markOffline(roomId, player.id);
+    if (offlineResult.removed) return;
+
     console.log(`[disconnect] ${player.name} offline in ${roomId}`);
-
-    if (cleanupRoomIfEmpty(roomId, room)) return;
-
     broadcastGameState(room);
   });
 });

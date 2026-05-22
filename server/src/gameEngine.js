@@ -35,7 +35,7 @@ function shuffle(deck) {
 }
 
 export class GameEngine {
-  constructor(roomId, playerEntries) {
+  constructor(roomId, playerEntries, options = {}) {
     this.roomId = roomId;
     this.order = playerEntries.map(([id, p]) => id);
     this.names = Object.fromEntries(playerEntries.map(([id, p]) => [id, p.name]));
@@ -44,7 +44,7 @@ export class GameEngine {
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;
-    this.dealerIndex = -1;
+    this.dealerIndex = this._initialDealerIndex(options.dealerPlayerId);
     this.smallBlindId = null;
     this.bigBlindId = null;
     this.activeIndex = 0;
@@ -53,9 +53,10 @@ export class GameEngine {
     this.message = '等待开始新一局';
     this.onlineStatus = {};
     this.seats = {};
+    this.startingChipsByPlayerId = options.startingChipsByPlayerId || {};
     for (const id of this.order) {
       this.seats[id] = {
-        chips: START_CHIPS,
+        chips: this.startingChipsByPlayerId[id] ?? START_CHIPS,
         bet: 0,
         totalBet: 0,
         folded: false,
@@ -64,6 +65,20 @@ export class GameEngine {
         acted: false,
       };
     }
+  }
+
+  _initialDealerIndex(dealerPlayerId) {
+    if (!dealerPlayerId) return -1;
+    const index = this.order.indexOf(dealerPlayerId);
+    return index >= 0 ? index : -1;
+  }
+
+  getDealerId() {
+    return this.order[this.dealerIndex] ?? null;
+  }
+
+  _advanceDealer() {
+    this.dealerIndex = (this.dealerIndex + 1) % this.order.length;
   }
 
   canStart() {
@@ -96,7 +111,7 @@ export class GameEngine {
       s.holeCards = [this.deck.pop(), this.deck.pop()];
     }
 
-    this.dealerIndex = (this.dealerIndex + 1) % this.order.length;
+    this._advanceDealer();
     const { smallBlindIndex, bigBlindIndex, firstActorIndex } = this._blindAndFirstActorIndexes();
     this.smallBlindId = this.order[smallBlindIndex];
     this.bigBlindId = this.order[bigBlindIndex];
