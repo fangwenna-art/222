@@ -14,6 +14,7 @@ function resolveServerUrl() {
 
 const SERVER_URL = resolveServerUrl();
 const SESSION_KEY = 'texas-holdem-session';
+const PROFILE_KEY = 'texas-holdem-player-name';
 const PHASE_LABEL = {
   waiting: '等待开始',
   preflop: '翻牌前',
@@ -30,6 +31,9 @@ const els = {
   connectionStatus: $('connectionStatus'),
   serverUrl: $('serverUrl'),
   playerName: $('playerName'),
+  currentPlayerName: $('currentPlayerName'),
+  btnSetName: $('btnSetName'),
+  btnChangeName: $('btnChangeName'),
   roomId: $('roomId'),
   btnCreate: $('btnCreate'),
   btnJoin: $('btnJoin'),
@@ -37,6 +41,7 @@ const els = {
   roomPanel: $('roomPanel'),
   currentRoomId: $('currentRoomId'),
   playerCount: $('playerCount'),
+  loginCard: $('loginCard'),
   lobbyCard: $('lobbyCard'),
   bottomDock: $('bottomDock'),
   gamePhase: $('gamePhase'),
@@ -82,6 +87,7 @@ const socket = io(SERVER_URL, {
 
 let currentSession = loadSession();
 let myPlayerId = currentSession?.playerId || null;
+let currentPlayerName = currentSession?.playerName || window.localStorage.getItem(PROFILE_KEY) || '';
 let betPanelOpen = false;
 let actionLogOpen = false;
 let dockResizeObserver = null;
@@ -101,10 +107,26 @@ function loadSession() {
   }
 }
 
+function setEntryMode(mode) {
+  const hasName = Boolean(currentPlayerName.trim());
+  const showLogin = mode === 'login' || !hasName;
+  els.loginCard.hidden = !showLogin;
+  els.lobbyCard.hidden = showLogin;
+  els.currentPlayerName.textContent = currentPlayerName || '—';
+  if (currentPlayerName) els.playerName.value = currentPlayerName;
+}
+
+function savePlayerName(name) {
+  currentPlayerName = String(name || '').trim();
+  if (currentPlayerName) window.localStorage.setItem(PROFILE_KEY, currentPlayerName);
+  els.currentPlayerName.textContent = currentPlayerName || '—';
+}
+
 function saveSession(session) {
   currentSession = session;
   myPlayerId = session?.playerId || null;
   if (session) {
+    if (session.playerName) savePlayerName(session.playerName);
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } else {
     window.localStorage.removeItem(SESSION_KEY);
@@ -114,7 +136,7 @@ function saveSession(session) {
 function rememberSession(res) {
   if (res?.session) {
     saveSession(res.session);
-    if (res.session.playerName) els.playerName.value = res.session.playerName;
+    if (res.session.playerName) savePlayerName(res.session.playerName);
     if (res.session.roomId) els.roomId.value = res.session.roomId;
   }
 }
@@ -226,6 +248,7 @@ function renderGameState(gameState) {
   if (!gameState) return;
 
   els.roomPanel.hidden = false;
+  els.loginCard.hidden = true;
   els.lobbyCard.hidden = true;
   document.body.classList.add('room-active');
   setDockVisible(true);
@@ -404,7 +427,7 @@ function clearRoomView() {
   actionLogOpen = false;
   document.body.classList.remove('bet-panel-open');
   els.roomPanel.hidden = true;
-  els.lobbyCard.hidden = false;
+  setEntryMode(currentPlayerName ? 'entry' : 'login');
   document.body.classList.remove('room-active');
   setDockVisible(false);
   els.seatList.innerHTML = '';
@@ -433,6 +456,7 @@ socket.on('connect', () => {
     return;
   }
 
+  setEntryMode(currentPlayerName ? 'entry' : 'login');
   setMessage('Socket 连接成功', 'success');
 });
 
@@ -451,8 +475,24 @@ socket.on('connect_error', (err) => {
 socket.on('gameState', renderGameState);
 
 function getPlayerName() {
-  return els.playerName.value.trim() || '匿名玩家';
+  return currentPlayerName.trim() || els.playerName.value.trim() || '匿名玩家';
 }
+
+els.btnSetName.addEventListener('click', () => {
+  const name = els.playerName.value.trim();
+  if (!name) {
+    setMessage('请输入昵称', 'error');
+    return;
+  }
+  savePlayerName(name);
+  setEntryMode('entry');
+  setMessage('请选择创建或加入房间', 'success');
+});
+
+els.btnChangeName.addEventListener('click', () => {
+  setEntryMode('login');
+  setMessage('可以修改昵称后继续');
+});
 
 els.btnCreate.addEventListener('click', () => {
   if (!socket.connected) {
@@ -614,5 +654,6 @@ els.btnLeaveRoom.addEventListener('click', () => {
   });
 });
 
+setEntryMode(currentPlayerName ? 'entry' : 'login');
 setLobbyButtonsEnabled(false);
 setStatus('连接中…', 'offline');

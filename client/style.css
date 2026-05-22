@@ -123,6 +123,39 @@ header h1 {
   color: #94a3b8;
 }
 
+.screen-kicker {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--me-color);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.login-card h2,
+.lobby-card h2 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.entry-head span {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.8125rem;
+}
+
+.entry-head strong {
+  color: #f8fafc;
+}
+
 label {
   display: block;
   font-size: 0.875rem;
@@ -269,6 +302,7 @@ body.room-active .room-head {
 }
 
 body.room-active .game-message,
+body.room-active .message,
 body.room-active .table-player-count {
   display: none;
 }
