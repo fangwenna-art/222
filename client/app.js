@@ -48,9 +48,13 @@ const els = {
   winnersList: $('winnersList'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
+  btnLeaveRoom: $('btnLeaveRoom'),
   btnFold: $('btnFold'),
+  btnCheck: $('btnCheck'),
+  btnBet: $('btnBet'),
   btnCall: $('btnCall'),
   btnRaise: $('btnRaise'),
+  btnAllIn: $('btnAllIn'),
 };
 
 els.serverUrl.textContent = SERVER_URL;
@@ -182,6 +186,7 @@ function renderGameState(gameState) {
     if (seat.id === myPlayerId) li.classList.add('is-me');
     if (seat.id === hand.activePlayerId) li.classList.add('is-active');
     if (seat.folded) li.classList.add('is-folded');
+    if (seat.allIn) li.classList.add('is-allin');
     if (seat.online === false) li.classList.add('is-offline');
     if (seat.isDealer) li.classList.add('is-dealer');
 
@@ -196,6 +201,7 @@ function renderGameState(gameState) {
         ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
         ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
+        ${seat.allIn ? '<span class="tag">All-in</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
       <div class="seat-meta">筹码 ${seat.chips} · 本轮 ${seat.bet}</div>
@@ -224,13 +230,22 @@ function renderGameState(gameState) {
   const myTurn = hand.activePlayerId === myPlayerId;
   const inHand = hand.phase !== 'waiting' && hand.phase !== 'ended';
   els.actionBar.hidden = !myTurn || !inHand;
-  els.btnFold.disabled = !myTurn;
-  els.btnCall.disabled = !myTurn;
-  els.btnRaise.disabled = !myTurn;
 
   const mySeat = hand.seats.find((s) => s.id === myPlayerId);
   const toCall = mySeat ? Math.max(0, hand.currentBet - mySeat.bet) : 0;
-  els.btnCall.textContent = toCall > 0 ? `跟注 ${toCall}` : '过牌';
+  const canCheckOrBet = myTurn && toCall === 0;
+  const canCallOrRaise = myTurn && toCall > 0;
+
+  els.btnFold.disabled = !myTurn;
+  els.btnCheck.disabled = !canCheckOrBet;
+  els.btnBet.disabled = !canCheckOrBet;
+  els.btnCall.disabled = !canCallOrRaise;
+  els.btnRaise.disabled = !canCallOrRaise;
+  els.btnAllIn.disabled = !myTurn || !mySeat || mySeat.chips <= 0;
+
+  els.btnCall.textContent = toCall > 0 ? `跟注 ${toCall}` : '跟注';
+  els.btnBet.textContent = `下注 ${hand.minRaise || 20}`;
+  els.btnRaise.textContent = `加注 ${hand.minRaise || 20}`;
 }
 
 function clearRoomView() {
@@ -332,8 +347,8 @@ els.btnStartHand.addEventListener('click', () => {
   });
 });
 
-function emitAction(action) {
-  socket.emit('game:action', { action }, (res) => {
+function emitAction(action, amount) {
+  socket.emit('game:action', { action, amount }, (res) => {
     if (!res?.ok) {
       setMessage(res?.error || '操作失败', 'error');
       return;
@@ -343,8 +358,22 @@ function emitAction(action) {
 }
 
 els.btnFold.addEventListener('click', () => emitAction('fold'));
+els.btnCheck.addEventListener('click', () => emitAction('check'));
+els.btnBet.addEventListener('click', () => emitAction('bet', 20));
 els.btnCall.addEventListener('click', () => emitAction('call'));
-els.btnRaise.addEventListener('click', () => emitAction('raise'));
+els.btnRaise.addEventListener('click', () => emitAction('raise', 20));
+els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.btnLeaveRoom.addEventListener('click', () => {
+  socket.emit('room:leave', {}, (res) => {
+    if (!res?.ok) {
+      setMessage(res?.error || '退出失败', 'error');
+      return;
+    }
+    saveSession(null);
+    clearRoomView();
+    setMessage('已退出房间', 'success');
+  });
+});
 
 setLobbyButtonsEnabled(false);
 setStatus('连接中…', 'offline');

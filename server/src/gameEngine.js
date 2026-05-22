@@ -58,6 +58,7 @@ export class GameEngine {
         chips: START_CHIPS,
         bet: 0,
         folded: false,
+        allIn: false,
         holeCards: [],
         acted: false,
       };
@@ -88,6 +89,7 @@ export class GameEngine {
       const s = this.seats[id];
       s.bet = 0;
       s.folded = false;
+      s.allIn = false;
       s.acted = false;
       s.holeCards = [this.deck.pop(), this.deck.pop()];
     }
@@ -124,12 +126,18 @@ export class GameEngine {
     };
   }
 
-  _postBlind(playerId, amount) {
+  _commitChips(playerId, amount) {
     const seat = this.seats[playerId];
-    const pay = Math.min(amount, seat.chips);
+    const pay = Math.min(Math.max(0, amount), seat.chips);
     seat.chips -= pay;
     seat.bet += pay;
+    seat.allIn = seat.chips === 0;
     this.pot += pay;
+    return pay;
+  }
+
+  _postBlind(playerId, amount) {
+    this._commitChips(playerId, amount);
   }
 
   _playersInHand() {
@@ -138,7 +146,7 @@ export class GameEngine {
 
   _canAct(playerId) {
     const seat = this.seats[playerId];
-    return seat && !seat.folded && seat.chips > 0;
+    return seat && !seat.folded && !seat.allIn && seat.chips > 0;
   }
 
   _skipUnavailableActors() {
@@ -214,7 +222,7 @@ export class GameEngine {
     if (alive.length <= 1) return true;
     return alive.every((id) => {
       const s = this.seats[id];
-      if (s.chips === 0) return true;
+      if (s.allIn || s.chips === 0) return true;
       return s.acted && s.bet === this.currentBet;
     });
   }
@@ -249,7 +257,7 @@ export class GameEngine {
     }
   }
 
-  applyAction(playerId, action, raiseAmount) {
+  applyAction(playerId, action, amount = RAISE_STEP) {
     if (!PHASES.includes(this.phase) || this.phase === 'waiting' || this.phase === 'ended' || this.phase === 'showdown') {
       return { ok: false, error: '当前不可操作' };
     }
@@ -258,40 +266,62 @@ export class GameEngine {
     }
     const seat = this.seats[playerId];
     if (seat.folded) return { ok: false, error: '你已弃牌' };
+    if (seat.allIn) return { ok: false, error: '你已 All-in' };
+
+    const toCall = Math.max(0, this.currentBet - seat.bet);
+    const numericAmount = Number.isFinite(Number(amount)) ? Number(amount) : RAISE_STEP;
 
     if (action === 'fold') {
       seat.folded = true;
       seat.acted = true;
       this.message = `${this.names[playerId]} 弃牌`;
+    } else if (action === 'check') {
+      if (toCall > 0) return { ok: false, error: '当前需要跟注，不能 Check' };
+      seat.acted = true;
+      this.message = `${this.names[playerId]} Check`;
     } else if (action === 'call') {
-      const need = this.currentBet - seat.bet;
-      if (need <= 0) {
-        seat.acted = true;
-        this.message = `${this.names[playerId]} 过牌`;
-      } else {
-        const pay = Math.min(need, seat.chips);
-        seat.chips -= pay;
-        seat.bet += pay;
-        this.pot += pay;
-        seat.acted = true;
-        this.message = `${this.names[playerId]} 跟注 ${pay}`;
-      }
-    } else if (action === 'raise') {
-      const target = Math.max(this.currentBet + RAISE_STEP, seat.bet + (raiseAmount || RAISE_STEP));
-      const need = target - seat.bet;
-      if (need > seat.chips) {
-        return { ok: false, error: '筹码不足' };
-      }
-      seat.chips -= need;
-      seat.bet = target;
-      this.pot += need;
-      this.currentBet = target;
+      if (toCall <= 0) return { ok: false, error: '当前无需跟注，请 Check 或 Bet' };
+      const paid = this._commitChips(playerId, toCall);
+      seat.acted = true;
+      this.message = seat.allIn ? `${this.names[playerId]} All-in 跟注 ${paid}` : `${this.names[playerId]} 跟注 ${paid}`;
+    } else if (action === 'bet') {
+      if (this.currentBet > 0) return { ok: false, error: '已有下注，请 Call 或 Raise' };
+      const betAmount = Math.max(RAISE_STEP, numericAmount);
+      if (betAmount > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
+      const paid = this._commitChips(playerId, betAmount);
+      this.currentBet = seat.bet;
       this.lastRaiserId = playerId;
       seat.acted = true;
       for (const id of this.order) {
-        if (id !== playerId && !this.seats[id].folded) this.seats[id].acted = false;
+        if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
       }
-      this.message = `${this.names[playerId]} 加注至 ${target}`;
+      this.message = `${this.names[playerId]} 下注 ${paid}`;
+    } else if (action === 'raise') {
+      if (this.currentBet <= 0) return { ok: false, error: '当前无人下注，请 Bet' };
+      const raiseBy = Math.max(RAISE_STEP, numericAmount);
+      const target = this.currentBet + raiseBy;
+      const need = target - seat.bet;
+      if (need > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
+      const paid = this._commitChips(playerId, need);
+      this.currentBet = seat.bet;
+      this.lastRaiserId = playerId;
+      seat.acted = true;
+      for (const id of this.order) {
+        if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
+      }
+      this.message = `${this.names[playerId]} 加注 ${raiseBy}，本轮下注到 ${this.currentBet}（补 ${paid}）`;
+    } else if (action === 'allin') {
+      const beforeBet = seat.bet;
+      const paid = this._commitChips(playerId, seat.chips);
+      seat.acted = true;
+      if (seat.bet > this.currentBet) {
+        this.currentBet = seat.bet;
+        this.lastRaiserId = playerId;
+        for (const id of this.order) {
+          if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
+        }
+      }
+      this.message = `${this.names[playerId]} All-in ${paid}（${beforeBet} → ${seat.bet}）`;
     } else {
       return { ok: false, error: '未知操作' };
     }
@@ -388,6 +418,7 @@ export class GameEngine {
           chips: s.chips,
           bet: s.bet,
           folded: s.folded,
+          allIn: s.allIn,
           online: Boolean(this.onlineStatus?.[id] ?? true),
           holeCards,
           isDealer: id === this.order[this.dealerIndex],

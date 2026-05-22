@@ -298,6 +298,36 @@ io.on('connection', (socket) => {
     ack?.({ ok: true, gameState: buildGameState(room, player.id) });
   });
 
+  socket.on('room:leave', (_payload, ack) => {
+    const { roomId, room, player } = getRoomAndPlayer(socket);
+    if (!roomId || !room || !player) {
+      ack?.({ ok: false, error: '未在房间中' });
+      return;
+    }
+
+    if (room.engine && !room.engine.canStart()) {
+      room.engine.forceFold(player.id);
+    }
+
+    tokenIndex.delete(player.token);
+    room.players.delete(player.id);
+    socket.leave(roomId);
+    socket.data.roomId = null;
+    socket.data.playerId = null;
+    socket.data.playerName = null;
+
+    if (room.players.size === 0) {
+      rooms.delete(roomId);
+      ack?.({ ok: true });
+      console.log(`[room:leave] ${player.name} left and removed ${roomId}`);
+      return;
+    }
+
+    broadcastGameState(room);
+    ack?.({ ok: true });
+    console.log(`[room:leave] ${player.name} left ${roomId}`);
+  });
+
   socket.on('disconnect', () => {
     const { roomId, room, player } = getRoomAndPlayer(socket);
     if (!roomId || !room || !player) return;
