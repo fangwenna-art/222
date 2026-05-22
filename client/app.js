@@ -307,44 +307,46 @@ function renderGameState(gameState) {
   els.btnStartHand.disabled = !canStart || !isHost;
   els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
 
-  const myTurn = hand.activePlayerId === myPlayerId;
+  const actions = hand.availableActions || {};
+  const myTurn = Boolean(actions.isActive);
   const inHand = hand.phase !== 'waiting' && hand.phase !== 'ended';
+  const hasAmountAction = Boolean(actions.canBet || actions.canRaise);
   els.actionBar.hidden = !myTurn || !inHand;
 
-  const mySeat = hand.seats.find((s) => s.id === myPlayerId);
-  const toCall = mySeat ? Math.max(0, hand.currentBet - mySeat.bet) : 0;
-  const minBet = hand.minBet || hand.bigBlind || 20;
-  const minRaise = hand.minRaise || 20;
-  const canCheckOrBet = myTurn && toCall === 0;
-  const canCallOrRaise = myTurn && toCall > 0;
-
-  const showBetControls = myTurn && (canCheckOrBet || canCallOrRaise) && betPanelOpen;
+  const showBetControls = myTurn && hasAmountAction && betPanelOpen;
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
-  els.btnAmountToggle.hidden = !myTurn;
+  els.btnAmountToggle.hidden = !hasAmountAction;
+  els.btnAmountToggle.disabled = !hasAmountAction;
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);
   els.betAmount.disabled = !myTurn;
-  els.betAmount.min = String(canCheckOrBet ? minBet : minRaise);
-  els.betAmount.placeholder = canCheckOrBet ? `最小下注 ${minBet}` : `最小加注 ${minRaise}`;
+  els.betAmount.min = String(actions.canBet ? actions.minBet : actions.minRaise);
+  els.betAmount.placeholder = actions.canBet ? `最小下注 ${actions.minBet}` : `最小加注 ${actions.minRaise}`;
+  if (myTurn && hasAmountAction && !els.betAmount.value) {
+    setBetAmount(actions.canBet ? actions.minBet : actions.minRaise);
+  }
 
-  els.btnFold.disabled = !myTurn;
-  els.btnCheck.hidden = !canCheckOrBet;
-  els.btnBet.hidden = !canCheckOrBet;
-  els.btnCall.hidden = !canCallOrRaise;
-  els.btnRaise.hidden = !canCallOrRaise;
-  els.btnCheck.disabled = !canCheckOrBet;
-  els.btnBet.disabled = !canCheckOrBet;
-  els.btnCall.disabled = !canCallOrRaise;
-  els.btnRaise.disabled = !canCallOrRaise;
-  els.btnAllIn.disabled = !myTurn || !mySeat || mySeat.chips <= 0;
+  els.btnFold.hidden = !actions.canFold;
+  els.btnCheck.hidden = !actions.canCheck;
+  els.btnBet.hidden = !actions.canBet;
+  els.btnCall.hidden = !actions.canCall;
+  els.btnRaise.hidden = !actions.canRaise;
+  els.btnAllIn.hidden = !actions.canAllIn;
+
+  els.btnFold.disabled = !actions.canFold;
+  els.btnCheck.disabled = !actions.canCheck;
+  els.btnBet.disabled = !actions.canBet;
+  els.btnCall.disabled = !actions.canCall;
+  els.btnRaise.disabled = !actions.canRaise;
+  els.btnAllIn.disabled = !actions.canAllIn;
   els.btnHalfPot.disabled = !myTurn;
   els.btnPot.disabled = !myTurn;
   els.btnDouble.disabled = !myTurn;
   els.btnTriple.disabled = !myTurn;
 
-  els.btnCall.textContent = toCall > 0 ? `跟注 ${toCall}` : '跟注';
-  els.btnBet.textContent = `下注 ≥${minBet}`;
-  els.btnRaise.textContent = `加注 ≥${minRaise}`;
+  els.btnCall.textContent = actions.toCall > 0 ? `跟注 ${actions.toCall}` : '跟注';
+  els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
+  els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
 }
 
 function clearRoomView() {
@@ -465,17 +467,15 @@ function getCurrentHand() {
 
 function quickBet(multiplier) {
   const hand = getCurrentHand();
-  if (!hand) return;
-  const mySeat = hand.seats.find((s) => s.id === myPlayerId);
-  if (!mySeat) return;
-  const toCall = Math.max(0, hand.currentBet - mySeat.bet);
+  const actions = hand?.availableActions;
+  if (!hand || !actions?.isActive) return;
   const base = multiplier === 'halfPot'
     ? Math.ceil(hand.pot / 2)
     : multiplier === 'pot'
       ? hand.pot
       : hand.bigBlind * multiplier;
-  const minimum = toCall > 0 ? hand.minRaise || hand.bigBlind : hand.minBet || hand.bigBlind;
-  setBetAmount(Math.min(mySeat.chips, Math.max(minimum, base)));
+  const minimum = actions.canBet ? actions.minBet : actions.minRaise;
+  setBetAmount(Math.min(actions.maxAmount, Math.max(minimum, base)));
 }
 
 function emitAction(action, amount) {
@@ -510,11 +510,17 @@ els.btnRaise.addEventListener('click', () => {
   emitAction('raise', amount);
 });
 els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.betAmount.addEventListener('input', () => {
+  const hand = getCurrentHand();
+  const actions = hand?.availableActions || {};
+  if (actions.canBet) els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
+  if (actions.canRaise) els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
+});
 els.btnAmountToggle.addEventListener('click', () => {
   betPanelOpen = !betPanelOpen;
   const hand = getCurrentHand();
-  const myTurn = hand?.activePlayerId === myPlayerId;
-  const showBetControls = Boolean(myTurn && betPanelOpen);
+  const actions = hand?.availableActions;
+  const showBetControls = Boolean(actions?.isActive && (actions.canBet || actions.canRaise) && betPanelOpen);
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);

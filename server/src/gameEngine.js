@@ -537,8 +537,33 @@ export class GameEngine {
     this.activeIndex = -1;
   }
 
+  _availableActionsFor(viewerId) {
+    const seat = this.seats[viewerId];
+    const activePlayerId = this.activeIndex >= 0 ? this.order[this.activeIndex] : null;
+    const minBet = BIG_BLIND;
+    const minRaise = this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND;
+    const toCall = seat ? Math.max(0, this.currentBet - seat.bet) : 0;
+    const isActive = Boolean(seat && activePlayerId === viewerId && !this.canStart() && this.phase !== 'showdown');
+    const canAct = isActive && !seat.folded && !seat.allIn && seat.chips > 0;
+
+    return {
+      isActive,
+      toCall,
+      minBet,
+      minRaise,
+      maxAmount: seat?.chips ?? 0,
+      canFold: canAct,
+      canCheck: canAct && toCall === 0,
+      canBet: canAct && toCall === 0 && this.currentBet === 0 && seat.chips >= minBet,
+      canCall: canAct && toCall > 0,
+      canRaise: canAct && toCall > 0 && seat.chips >= toCall + minRaise,
+      canAllIn: canAct && seat.chips > 0,
+    };
+  }
+
   toPublicState(viewerId) {
     const revealHole = this.phase === 'showdown' || this.phase === 'ended';
+    const availableActions = this._availableActionsFor(viewerId);
     return {
       phase: this.phase,
       pot: this.pot,
@@ -553,6 +578,7 @@ export class GameEngine {
       bigBlind: BIG_BLIND,
       minRaise: this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND,
       minBet: BIG_BLIND,
+      availableActions,
       actionLogs: this.actionLogs.slice(-12),
       communityCards: this.community.map(cardLabel),
       message: this.message,

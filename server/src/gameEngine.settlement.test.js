@@ -117,4 +117,27 @@ function makeEngine() {
   assert(result.ok, 'valid bet should pass');
 }
 
+{
+  const engine = new GameEngine('ACTIONS', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+    ['C', { name: 'C' }],
+  ]);
+  engine.startHand();
+  let state = engine.toPublicState('A');
+  assert(state.availableActions.isActive, 'A should be active preflop in 3-player hand');
+  assert(state.availableActions.canFold, 'active player can fold');
+  assert(state.availableActions.canCall, 'A should be facing big blind and can call');
+  assert(state.availableActions.canRaise, 'A should be able to raise');
+  assert(!state.availableActions.canCheck, 'A cannot check facing a bet');
+  assert(state.availableActions.toCall === 20, `A toCall should be 20, got ${state.availableActions.toCall}`);
+
+  engine.applyAction('A', 'call');
+  engine.applyAction('B', 'call');
+  state = engine.toPublicState('C');
+  assert(state.availableActions.isActive, 'C should become active after calls');
+  assert(state.availableActions.canCheck, 'big blind can check when action returns');
+  assert(!state.availableActions.canBet, 'big blind should not bet while preflop currentBet exists');
+}
+
 console.log('全部结算测试通过');
