@@ -46,6 +46,8 @@ const els = {
   seatList: $('seatList'),
   winnersBox: $('winnersBox'),
   winnersList: $('winnersList'),
+  actionLogBox: $('actionLogBox'),
+  actionLogList: $('actionLogList'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   btnLeaveRoom: $('btnLeaveRoom'),
@@ -137,6 +139,27 @@ function scrollToMySeat() {
   }
 }
 
+function formatActionLog(log) {
+  const name = log.playerName || '系统';
+  const amount = log.amount ? ` ${log.amount}` : '';
+  const label = {
+    smallBlind: '小盲',
+    bigBlind: '大盲',
+    fold: '弃牌',
+    check: 'Check',
+    call: '跟注',
+    bet: '下注',
+    raise: '加注',
+    allin: 'All-in',
+    win: '获胜',
+    dealFlop: '发 Flop',
+    dealTurn: '发 Turn',
+    dealRiver: '发 River',
+    showdown: '摊牌',
+  }[log.action] || log.action;
+  return `${PHASE_LABEL[log.phase] || log.phase} · ${name} ${label}${amount}${log.note ? `（${log.note}）` : ''}`;
+}
+
 /** 仅渲染服务端 gameState */
 function renderGameState(gameState) {
   if (!gameState) return;
@@ -169,6 +192,7 @@ function renderGameState(gameState) {
     });
     scrollToMySeat();
     els.winnersBox.hidden = true;
+    els.actionLogBox.hidden = true;
     els.btnStartHand.hidden = false;
     els.btnStartHand.disabled = players.length < 2;
     els.actionBar.hidden = true;
@@ -221,6 +245,18 @@ function renderGameState(gameState) {
     });
   } else {
     els.winnersBox.hidden = true;
+  }
+
+  if (hand.actionLogs?.length) {
+    els.actionLogBox.hidden = false;
+    els.actionLogList.innerHTML = '';
+    hand.actionLogs.slice().reverse().forEach((log) => {
+      const li = document.createElement('li');
+      li.textContent = formatActionLog(log);
+      els.actionLogList.appendChild(li);
+    });
+  } else {
+    els.actionLogBox.hidden = true;
   }
 
   const canStart = hand.canStart && players.length >= 2;

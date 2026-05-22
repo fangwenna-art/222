@@ -44,12 +44,14 @@ export class GameEngine {
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;
+    this.lastRaiseAmount = BIG_BLIND;
     this.dealerIndex = this._initialDealerIndex(options.dealerPlayerId);
     this.smallBlindId = null;
     this.bigBlindId = null;
     this.activeIndex = 0;
     this.lastRaiserId = null;
     this.winners = [];
+    this.actionLogs = [];
     this.message = '等待开始新一局';
     this.onlineStatus = {};
     this.seats = {};
@@ -97,7 +99,9 @@ export class GameEngine {
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;
+    this.lastRaiseAmount = BIG_BLIND;
     this.winners = [];
+    this.actionLogs = [];
     this.lastRaiserId = null;
     this.message = '新一局开始';
 
@@ -117,8 +121,11 @@ export class GameEngine {
     this.bigBlindId = this.order[bigBlindIndex];
 
     this._postBlind(this.smallBlindId, SMALL_BLIND);
+    this._log(this.smallBlindId, 'smallBlind', SMALL_BLIND);
     this._postBlind(this.bigBlindId, BIG_BLIND);
+    this._log(this.bigBlindId, 'bigBlind', BIG_BLIND);
     this.currentBet = BIG_BLIND;
+    this.lastRaiseAmount = BIG_BLIND;
     this.activeIndex = firstActorIndex;
     this._skipUnavailableActors();
     this.message = `${this.names[this.smallBlindId]} 下小盲 ${SMALL_BLIND}，${this.names[this.bigBlindId]} 下大盲 ${BIG_BLIND}`;
@@ -141,6 +148,54 @@ export class GameEngine {
       bigBlindIndex,
       firstActorIndex: (bigBlindIndex + 1) % n,
     };
+  }
+
+  _log(playerId, action, amount = 0, note = '') {
+    this.actionLogs.push({
+      phase: this.phase,
+      playerId,
+      playerName: this.names[playerId] || '',
+      action,
+      amount,
+      note,
+    });
+    if (this.actionLogs.length > 80) this.actionLogs.shift();
+  }
+
+  _activeContenders() {
+    return this.order.filter((id) => {
+      const seat = this.seats[id];
+      return seat && !seat.folded;
+    });
+  }
+
+  _playersAbleToAct() {
+    return this._activeContenders().filter((id) => this._canAct(id));
+  }
+
+  _shouldRunOutBoard() {
+    return this._activeContenders().length > 1 && this._playersAbleToAct().length === 0;
+  }
+
+  _runOutToShowdown() {
+    while (this.community.length < 5) {
+      if (this.community.length === 0) {
+        this.phase = 'flop';
+        this._dealCommunity(3);
+        this._log(null, 'dealFlop', 0, '自动发 Flop');
+      } else if (this.community.length === 3) {
+        this.phase = 'turn';
+        this._dealCommunity(1);
+        this._log(null, 'dealTurn', 0, '自动发 Turn');
+      } else if (this.community.length === 4) {
+        this.phase = 'river';
+        this._dealCommunity(1);
+        this._log(null, 'dealRiver', 0, '自动发 River');
+      } else {
+        break;
+      }
+    }
+    this._showdown();
   }
 
   _commitChips(playerId, amount) {
@@ -179,6 +234,7 @@ export class GameEngine {
 
   _resetBets() {
     this.currentBet = 0;
+    this.lastRaiseAmount = BIG_BLIND;
     this.lastRaiserId = null;
     for (const id of this.order) {
       this.seats[id].bet = 0;
@@ -202,14 +258,17 @@ export class GameEngine {
     if (this.phase === 'preflop') {
       this.phase = 'flop';
       this._dealCommunity(3);
+      this._log(null, 'dealFlop', 0, '发出 Flop');
       this.message = '翻牌圈 Flop';
     } else if (this.phase === 'flop') {
       this.phase = 'turn';
       this._dealCommunity(1);
+      this._log(null, 'dealTurn', 0, '发出 Turn');
       this.message = '转牌圈 Turn';
     } else if (this.phase === 'turn') {
       this.phase = 'river';
       this._dealCommunity(1);
+      this._log(null, 'dealRiver', 0, '发出 River');
       this.message = '河牌圈 River';
     } else if (this.phase === 'river') {
       this._showdown();
@@ -218,6 +277,7 @@ export class GameEngine {
 
     this.activeIndex = this._firstPostFlopActorIndex();
     this._skipUnavailableActors();
+    if (this._shouldRunOutBoard()) this._runOutToShowdown();
   }
 
   _firstPostFlopActorIndex() {
@@ -261,6 +321,7 @@ export class GameEngine {
     if (this.phase === 'waiting' || this.phase === 'ended') return;
 
     seat.folded = true;
+    this._log(playerId, 'fold', 0, '离线/离开自动弃牌');
     this.message = `${this.names[playerId]} 离开，视为弃牌`;
 
     const alive = this._playersInHand();
@@ -292,53 +353,62 @@ export class GameEngine {
     if (action === 'fold') {
       seat.folded = true;
       seat.acted = true;
+      this._log(playerId, 'fold');
       this.message = `${this.names[playerId]} 弃牌`;
     } else if (action === 'check') {
       if (toCall > 0) return { ok: false, error: '当前需要跟注，不能 Check' };
       seat.acted = true;
+      this._log(playerId, 'check');
       this.message = `${this.names[playerId]} Check`;
     } else if (action === 'call') {
       if (toCall <= 0) return { ok: false, error: '当前无需跟注，请 Check 或 Bet' };
       const paid = this._commitChips(playerId, toCall);
       seat.acted = true;
+      this._log(playerId, 'call', paid);
       this.message = seat.allIn ? `${this.names[playerId]} All-in 跟注 ${paid}` : `${this.names[playerId]} 跟注 ${paid}`;
     } else if (action === 'bet') {
       if (this.currentBet > 0) return { ok: false, error: '已有下注，请 Call 或 Raise' };
-      const betAmount = Math.max(RAISE_STEP, numericAmount);
+      const betAmount = Math.max(BIG_BLIND, numericAmount);
       if (betAmount > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
       const paid = this._commitChips(playerId, betAmount);
       this.currentBet = seat.bet;
+      this.lastRaiseAmount = betAmount;
       this.lastRaiserId = playerId;
       seat.acted = true;
       for (const id of this.order) {
         if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
       }
+      this._log(playerId, 'bet', paid);
       this.message = `${this.names[playerId]} 下注 ${paid}`;
     } else if (action === 'raise') {
       if (this.currentBet <= 0) return { ok: false, error: '当前无人下注，请 Bet' };
-      const raiseBy = Math.max(RAISE_STEP, numericAmount);
+      const raiseBy = Math.max(this.lastRaiseAmount, numericAmount);
       const target = this.currentBet + raiseBy;
       const need = target - seat.bet;
       if (need > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
       const paid = this._commitChips(playerId, need);
       this.currentBet = seat.bet;
+      this.lastRaiseAmount = raiseBy;
       this.lastRaiserId = playerId;
       seat.acted = true;
       for (const id of this.order) {
         if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
       }
+      this._log(playerId, 'raise', paid, `加注额 ${raiseBy}`);
       this.message = `${this.names[playerId]} 加注 ${raiseBy}，本轮下注到 ${this.currentBet}（补 ${paid}）`;
     } else if (action === 'allin') {
       const beforeBet = seat.bet;
       const paid = this._commitChips(playerId, seat.chips);
       seat.acted = true;
       if (seat.bet > this.currentBet) {
+        this.lastRaiseAmount = Math.max(this.lastRaiseAmount, seat.bet - this.currentBet);
         this.currentBet = seat.bet;
         this.lastRaiserId = playerId;
         for (const id of this.order) {
           if (id !== playerId && !this.seats[id].folded && !this.seats[id].allIn) this.seats[id].acted = false;
         }
       }
+      this._log(playerId, 'allin', paid);
       this.message = `${this.names[playerId]} All-in ${paid}（${beforeBet} → ${seat.bet}）`;
     } else {
       return { ok: false, error: '未知操作' };
@@ -347,6 +417,11 @@ export class GameEngine {
     const alive = this._playersInHand();
     if (alive.length === 1) {
       this._awardPot(alive[0], '对手弃牌');
+      return { ok: true };
+    }
+
+    if (this._shouldRunOutBoard()) {
+      this._runOutToShowdown();
       return { ok: true };
     }
 
@@ -363,6 +438,7 @@ export class GameEngine {
     const seat = this.seats[winnerId];
     seat.chips += this.pot;
     this.winners = [{ id: winnerId, name: this.names[winnerId], amount: this.pot, reason }];
+    this._log(winnerId, 'win', this.pot, reason);
     this.pot = 0;
     this.phase = 'ended';
     this.message = `${this.names[winnerId]} 赢得 ${this.winners[0].amount}（${reason}）`;
@@ -435,6 +511,7 @@ export class GameEngine {
 
   _showdown() {
     this.phase = 'showdown';
+    this._log(null, 'showdown', 0, '摊牌结算');
     this.winners = this._settlePotsByShowdown();
     this.pot = 0;
     this.phase = 'ended';
@@ -454,7 +531,8 @@ export class GameEngine {
       bigBlindId: this.bigBlindId,
       smallBlind: SMALL_BLIND,
       bigBlind: BIG_BLIND,
-      minRaise: RAISE_STEP,
+      minRaise: this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND,
+      actionLogs: this.actionLogs.slice(-12),
       communityCards: this.community.map(cardLabel),
       message: this.message,
       winners: this.winners,

@@ -412,23 +412,45 @@ button:disabled {
   color: #fecaca;
 }
 
-.winners-box {
+.winners-box,
+.action-log-box {
   padding: 10px;
   background: #14532d;
   border-radius: 8px;
   margin-top: 8px;
 }
 
-.winners-box h4 {
+.action-log-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+}
+
+.winners-box h4,
+.action-log-box h4 {
   font-size: 0.8125rem;
   color: #86efac;
   margin-bottom: 6px;
 }
 
-.winners-box ul {
+.action-log-box h4 {
+  color: #93c5fd;
+}
+
+.winners-box ul,
+.action-log-box ul {
   list-style: none;
   font-size: 0.8125rem;
   color: #bbf7d0;
+}
+
+.action-log-box ul {
+  color: #cbd5e1;
+}
+
+.action-log-box li + li {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #1e293b;
 }
 
 /* 底部固定操作栏 */

@@ -52,4 +52,36 @@ function makeEngine() {
   assert(engine.seats.C.chips === 1100, `C should receive uncontested side pot 100, got ${engine.seats.C.chips}`);
 }
 
+{
+  const engine = new GameEngine('ALLIN', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+  ], {
+    startingChipsByPlayerId: { A: 40, B: 40 },
+  });
+  const result = engine.startHand();
+  assert(result.ok, 'all-in hand should start');
+  engine.applyAction('A', 'allin');
+  engine.applyAction('B', 'call');
+  assert(engine.phase === 'ended', `all-in call should run out to ended, got ${engine.phase}`);
+  assert(engine.community.length === 5, `runout should deal 5 community cards, got ${engine.community.length}`);
+  assert(engine.actionLogs.some((log) => log.action === 'dealFlop'), 'action logs should include dealFlop');
+  assert(engine.actionLogs.some((log) => log.action === 'showdown'), 'action logs should include showdown');
+}
+
+{
+  const engine = new GameEngine('RAISE', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+    ['C', { name: 'C' }],
+  ]);
+  engine.startHand();
+  assert(engine.lastRaiseAmount === 20, 'initial last raise should be big blind');
+  engine.applyAction('A', 'raise', 40);
+  assert(engine.currentBet === 60, `raise by 40 should set currentBet to 60, got ${engine.currentBet}`);
+  assert(engine.lastRaiseAmount === 40, `lastRaiseAmount should become 40, got ${engine.lastRaiseAmount}`);
+  engine.applyAction('B', 'raise', 20);
+  assert(engine.currentBet === 100, `min re-raise should use lastRaiseAmount 40, got ${engine.currentBet}`);
+}
+
 console.log('全部结算测试通过');
