@@ -5,7 +5,7 @@
 }
 
 :root {
-  --dock-height: 210px;
+  --dock-height: 176px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --app-max: 420px;
   --me-color: #fbbf24;
@@ -479,8 +479,8 @@ button:disabled {
   width: 100%;
   max-width: var(--app-max);
   z-index: 200;
-  padding: 10px 12px calc(10px + var(--safe-bottom));
-  background: rgba(15, 23, 42, 0.92);
+  padding: 8px 10px calc(8px + var(--safe-bottom));
+  background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid #334155;
@@ -489,65 +489,79 @@ button:disabled {
 
 .bottom-dock .dock-btn--start {
   width: 100%;
-  min-height: 44px;
+  min-height: 42px;
   background: #22c55e;
   color: #052e16;
-  font-size: 1rem;
-  margin-bottom: 8px;
+  font-size: 0.9375rem;
+  margin-bottom: 6px;
 }
 
 .bottom-dock .dock-btn--leave {
   width: 100%;
-  min-height: 40px;
-  margin-bottom: 8px;
+  min-height: 36px;
+  margin-bottom: 6px;
   background: #334155;
   color: #e2e8f0;
+  font-size: 0.8125rem;
 }
 
 .bottom-dock .action-bar {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .bet-controls {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 6px;
 }
 
 .bet-controls label {
-  margin-bottom: 0;
-  font-size: 0.75rem;
+  grid-column: 1 / -1;
+  margin-bottom: -2px;
+  font-size: 0.6875rem;
+  color: #94a3b8;
 }
 
 .bet-controls input {
   margin-bottom: 0;
   min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.9375rem;
 }
 
-.quick-bets,
+.quick-bets {
+  display: grid;
+  grid-template-columns: repeat(2, 42px);
+  gap: 4px;
+}
+
 .action-buttons {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
 }
 
-.action-buttons {
-  grid-template-columns: repeat(3, 1fr);
-}
-
 .quick-bets button {
-  min-height: 34px;
-  padding: 6px 8px;
-  font-size: 0.75rem;
+  min-height: 18px;
+  padding: 2px 4px;
+  font-size: 0.625rem;
+  border-radius: 5px;
   background: #475569;
   color: #e2e8f0;
 }
 
 .bottom-dock .action-bar button {
   min-height: 42px;
-  padding: 8px 8px;
+  padding: 8px 6px;
   font-size: 0.8125rem;
+}
+
+.action-buttons button[hidden],
+.bet-controls[hidden] {
+  display: none;
 }
 
 .bottom-dock .btn-danger {

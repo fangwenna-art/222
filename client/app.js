@@ -316,11 +316,17 @@ function renderGameState(gameState) {
   const canCheckOrBet = myTurn && toCall === 0;
   const canCallOrRaise = myTurn && toCall > 0;
 
+  const showBetControls = myTurn && (canCheckOrBet || canCallOrRaise);
+  els.betAmount.closest('.bet-controls').hidden = !showBetControls;
   els.betAmount.disabled = !myTurn;
   els.betAmount.min = String(canCheckOrBet ? minBet : minRaise);
   els.betAmount.placeholder = canCheckOrBet ? `最小下注 ${minBet}` : `最小加注 ${minRaise}`;
 
   els.btnFold.disabled = !myTurn;
+  els.btnCheck.hidden = !canCheckOrBet;
+  els.btnBet.hidden = !canCheckOrBet;
+  els.btnCall.hidden = !canCallOrRaise;
+  els.btnRaise.hidden = !canCallOrRaise;
   els.btnCheck.disabled = !canCheckOrBet;
   els.btnBet.disabled = !canCheckOrBet;
   els.btnCall.disabled = !canCallOrRaise;
