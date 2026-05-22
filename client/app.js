@@ -49,6 +49,8 @@ const els = {
   winnersList: $('winnersList'),
   actionLogBox: $('actionLogBox'),
   actionLogList: $('actionLogList'),
+  btnToggleLogs: $('btnToggleLogs'),
+  lastActionText: $('lastActionText'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   btnLeaveRoom: $('btnLeaveRoom'),
@@ -76,6 +78,7 @@ const socket = io(SERVER_URL, {
 let currentSession = loadSession();
 let myPlayerId = currentSession?.playerId || null;
 let betPanelOpen = false;
+let actionLogOpen = false;
 
 function loadSession() {
   try {
@@ -289,16 +292,21 @@ function renderGameState(gameState) {
     els.winnersBox.hidden = true;
   }
 
-  if (hand.actionLogs?.length) {
+  if (hand.actionLogs?.length && hand.phase !== 'waiting') {
     els.actionLogBox.hidden = false;
+    const logs = hand.actionLogs.slice().reverse();
+    els.lastActionText.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
+    els.actionLogList.hidden = !actionLogOpen;
+    els.btnToggleLogs.classList.toggle('is-open', actionLogOpen);
     els.actionLogList.innerHTML = '';
-    hand.actionLogs.slice().reverse().forEach((log) => {
+    logs.forEach((log) => {
       const li = document.createElement('li');
       li.textContent = formatActionLog(log);
       els.actionLogList.appendChild(li);
     });
   } else {
     els.actionLogBox.hidden = true;
+    actionLogOpen = false;
   }
 
   const canStart = hand.canStart && players.length >= 2;
@@ -351,6 +359,7 @@ function renderGameState(gameState) {
 
 function clearRoomView() {
   betPanelOpen = false;
+  actionLogOpen = false;
   document.body.classList.remove('bet-panel-open');
   els.roomPanel.hidden = true;
   els.lobbyCard.hidden = false;
@@ -510,6 +519,11 @@ els.btnRaise.addEventListener('click', () => {
   emitAction('raise', amount);
 });
 els.btnAllIn.addEventListener('click', () => emitAction('allin'));
+els.btnToggleLogs.addEventListener('click', () => {
+  actionLogOpen = !actionLogOpen;
+  els.actionLogList.hidden = !actionLogOpen;
+  els.btnToggleLogs.classList.toggle('is-open', actionLogOpen);
+});
 els.betAmount.addEventListener('input', () => {
   const hand = getCurrentHand();
   const actions = hand?.availableActions || {};

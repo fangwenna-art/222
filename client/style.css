@@ -441,8 +441,7 @@ button:disabled {
   color: #fecaca;
 }
 
-.winners-box,
-.action-log-box {
+.winners-box {
   padding: 10px;
   background: #14532d;
   border-radius: 8px;
@@ -450,29 +449,52 @@ button:disabled {
 }
 
 .action-log-box {
-  background: #0f172a;
-  border: 1px solid #334155;
+  padding: 0;
+  margin-top: 6px;
+  background: transparent;
 }
 
-.winners-box h4,
-.action-log-box h4 {
+.winners-box h4 {
   font-size: 0.8125rem;
   color: #86efac;
   margin-bottom: 6px;
 }
 
-.action-log-box h4 {
-  color: #93c5fd;
-}
-
-.winners-box ul,
-.action-log-box ul {
+.winners-box ul {
   list-style: none;
   font-size: 0.8125rem;
   color: #bbf7d0;
 }
 
+.log-summary {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 0.75rem;
+  background: #0f172a;
+  color: #cbd5e1;
+  border: 1px solid #334155;
+}
+
+.log-summary::after {
+  content: '展开';
+  float: right;
+  color: #93c5fd;
+}
+
+.log-summary.is-open::after {
+  content: '收起';
+}
+
 .action-log-box ul {
+  list-style: none;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  font-size: 0.75rem;
   color: #cbd5e1;
 }
 
