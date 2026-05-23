@@ -284,12 +284,12 @@ export class RoomManager {
 
     this._prepareNextHand(room);
     if (room.engine && !room.engine.canStart()) {
-      return { ok: false, error: '当前局未结束' };
+      return { ok: false, error: '当前局未结束，请稍候再试' };
     }
 
     const entries = [...room.players.entries()].filter(([, player]) => player.online && (player.chips ?? 1) > 0);
     if (entries.length < 2) {
-      return { ok: false, error: '至少需要 2 名在线玩家' };
+      return { ok: false, error: '至少需要 2 名在线且有筹码的玩家' };
     }
     const engine = new GameEngine(roomId, entries, {
       startingChipsByPlayerId: Object.fromEntries(entries.map(([id, player]) => [id, player.chips]).filter(([, chips]) => chips != null)),

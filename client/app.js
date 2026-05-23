@@ -135,6 +135,7 @@ function resetResultPanelTiming() {
   resultPanelDelayUntil = 0;
   resultPanelOpen = false;
   lastHandResultSignature = '';
+  resetStartHandPending();
 }
 
 function updateLayoutMetrics() {
@@ -205,6 +206,27 @@ function setMessage(text, type = '') {
 
 function countOnlinePlayers(players) {
   return (players || []).filter((player) => player.online !== false).length;
+}
+
+function countStartEligiblePlayers(players) {
+  return (players || []).filter((player) => player.online !== false && (player.chips == null || player.chips > 0)).length;
+}
+
+const START_HAND_TIMEOUT_MS = 12000;
+let startHandAckTimer = null;
+
+function clearStartHandAckTimer() {
+  if (startHandAckTimer) {
+    clearTimeout(startHandAckTimer);
+    startHandAckTimer = null;
+  }
+}
+
+function resetStartHandPending(reason = '') {
+  if (!startHandPending) return;
+  startHandPending = false;
+  clearStartHandAckTimer();
+  if (reason) showRoomNotice(reason, 'error');
 }
 
 function showRoomNotice(text, type = '') {
@@ -615,6 +637,10 @@ function renderGameState(gameState) {
   const { players, hand } = gameState;
   window.__lastHandState = hand;
 
+  if (hand && hand.phase !== 'waiting' && hand.phase !== 'ended' && startHandPending) {
+    resetStartHandPending();
+  }
+
   els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
   renderHandHistory(gameState.handHistory);
 
@@ -649,10 +675,10 @@ function renderGameState(gameState) {
     resetResultPanelTiming();
     lastRenderedHandPhase = null;
     clearActionTimer();
-    const onlineCount = countOnlinePlayers(players);
+    const eligibleCount = countStartEligiblePlayers(players);
     const isHost = gameState.hostPlayerId === myPlayerId;
     els.btnStartHand.hidden = false;
-    els.btnStartHand.disabled = startHandPending || onlineCount < 2 || !isHost;
+    els.btnStartHand.disabled = startHandPending || eligibleCount < 2 || !isHost;
     els.btnStartHand.textContent = startHandPending
       ? '正在开始…'
       : isHost
@@ -662,8 +688,8 @@ function renderGameState(gameState) {
     els.actionHint.hidden = false;
     els.actionHint.textContent = !isHost
       ? '等待房主开始新一局'
-      : onlineCount < 2
-        ? '至少 2 人在线才能开始'
+      : eligibleCount < 2
+        ? '至少 2 人在线且有筹码才能开始'
         : '房间已就绪，可以开始';
     els.allInConfirm.hidden = true;
     syncDockVisibility();
@@ -733,8 +759,8 @@ function renderGameState(gameState) {
   renderResultPanel(hand);
 
   const inHand = isHandInProgress(hand);
-  const onlineCount = countOnlinePlayers(players);
-  const canStartNew = hand.canStart && onlineCount >= 2 && !inHand;
+  const eligibleCount = countStartEligiblePlayers(players);
+  const canStartNew = hand.canStart && eligibleCount >= 2 && !inHand;
   const isHost = gameState.hostPlayerId === myPlayerId;
   els.btnStartHand.hidden = !canStartNew;
   els.btnStartHand.disabled = startHandPending || !canStartNew || !isHost;
@@ -807,8 +833,8 @@ function renderGameState(gameState) {
   } else if (canStartNew) {
     els.actionHint.textContent = !isHost
       ? '等待房主开始新一局'
-      : onlineCount < 2
-        ? '至少 2 人在线才能开始'
+      : eligibleCount < 2
+        ? '至少 2 人在线且有筹码才能开始'
         : '本局已结束，可开始新一局';
   }
   els.actionHint.hidden = !(inHand || canStartNew);
@@ -853,6 +879,7 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', () => {
+  resetStartHandPending();
   setStatus('已断开', 'offline');
   setMessage('连接已断开，正在等待自动重连…');
   setLobbyButtonsEnabled(false);
@@ -922,7 +949,24 @@ els.btnJoin.addEventListener('click', () => {
 });
 
 els.btnStartHand.addEventListener('click', () => {
-  if (els.btnStartHand.disabled || startHandPending) return;
+  if (startHandPending) return;
+  if (els.btnStartHand.disabled) {
+    if (!socket.connected) {
+      showRoomNotice('连接已断开，请等待重连', 'error');
+      return;
+    }
+    const gameState = window.__lastGameState;
+    const isHost = gameState?.hostPlayerId === myPlayerId;
+    if (!isHost) {
+      showRoomNotice('只有房主可以开始新一局', 'error');
+      return;
+    }
+    if (countStartEligiblePlayers(gameState?.players) < 2) {
+      showRoomNotice('至少 2 人在线且有筹码才能开始', 'error');
+      return;
+    }
+    return;
+  }
   if (!socket.connected) {
     showRoomNotice('连接已断开，请等待重连', 'error');
     return;
@@ -931,7 +975,15 @@ els.btnStartHand.addEventListener('click', () => {
   startHandPending = true;
   els.btnStartHand.disabled = true;
   els.btnStartHand.textContent = '正在开始…';
+  clearStartHandAckTimer();
+  startHandAckTimer = setTimeout(() => {
+    if (!startHandPending) return;
+    resetStartHandPending('开始请求超时，请重试');
+    if (window.__lastGameState) renderGameState(window.__lastGameState);
+  }, START_HAND_TIMEOUT_MS);
+
   socket.emit('game:start', {}, (res) => {
+    clearStartHandAckTimer();
     startHandPending = false;
     if (!res?.ok) {
       showRoomNotice(res?.error || '无法开始', 'error');
