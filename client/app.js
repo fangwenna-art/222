@@ -70,6 +70,26 @@ const els = {
   resultLogList: $('resultLogList'),
   handHistoryBox: $('handHistoryBox'),
   handHistoryList: $('handHistoryList'),
+  roomBlindsLabel: $('roomBlindsLabel'),
+  roomSettingsBox: $('roomSettingsBox'),
+  btnToggleSettings: $('btnToggleSettings'),
+  roomSettingsBody: $('roomSettingsBody'),
+  roomSettingsSummary: $('roomSettingsSummary'),
+  roomSettingsStatus: $('roomSettingsStatus'),
+  roomSettingsHelp: $('roomSettingsHelp'),
+  roomSettingsDisplay: $('roomSettingsDisplay'),
+  roomSettingsForm: $('roomSettingsForm'),
+  roomSettingsError: $('roomSettingsError'),
+  displayStartingChips: $('displayStartingChips'),
+  displaySmallBlind: $('displaySmallBlind'),
+  displayBigBlind: $('displayBigBlind'),
+  settingStartingChips: $('settingStartingChips'),
+  settingSmallBlind: $('settingSmallBlind'),
+  settingBigBlind: $('settingBigBlind'),
+  btnPresetBlinds1020: $('btnPresetBlinds1020'),
+  btnPresetBlinds2550: $('btnPresetBlinds2550'),
+  btnCancelSettings: $('btnCancelSettings'),
+  btnSaveSettings: $('btnSaveSettings'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   actionHint: $('actionHint'),
@@ -108,6 +128,29 @@ let lastHandResultSignature = '';
 let lastRenderedHandPhase = null;
 let dockResizeObserver = null;
 let startHandPending = false;
+let settingsSavePending = false;
+let roomSettingsEditing = false;
+let lastSyncedSettingsSnap = '';
+let lastSettingsMode = null;
+let lastSettingsHandPhase = null;
+let settingsPanelExpanded = false;
+let settingsExpandedManual = false;
+let settingsEverSaved = false;
+
+const IN_HAND_PHASES = new Set(['preflop', 'flop', 'turn', 'river']);
+const SETTINGS_MOBILE_MQL = window.matchMedia('(max-width: 520px)');
+
+const SETTINGS_MODE = {
+  EDIT: 'edit',
+  LOCKED: 'locked',
+  READONLY: 'readonly',
+};
+
+const SETTINGS_LIMITS = {
+  startingChips: { min: 100, max: 100000 },
+  smallBlind: { min: 1, max: 5000 },
+  bigBlind: { min: 2, max: 10000 },
+};
 let resultPanelRevealTimer = null;
 let resultPanelDelayUntil = 0;
 
@@ -611,6 +654,287 @@ function orderSeatsForTable(seats) {
   return list;
 }
 
+function isRoomHost(gameState) {
+  if (!gameState || !myPlayerId) return false;
+  if (gameState.hostPlayerId === myPlayerId) return true;
+  const me = gameState.players?.find((player) => player.id === myPlayerId);
+  return Boolean(me?.isHost);
+}
+
+function settingsSnapshot(settings) {
+  if (!settings) return '';
+  return `${settings.startingChips}|${settings.smallBlind}|${settings.bigBlind}`;
+}
+
+function isSettingsEditable(gameState, hand) {
+  if (typeof gameState?.canEditSettings === 'boolean') return gameState.canEditSettings;
+  if (!hand) return true;
+  return hand.phase === 'waiting' || hand.phase === 'ended' || hand.phase === 'showdown';
+}
+
+function readSettingsDraft() {
+  return {
+    startingChips: Number(els.settingStartingChips?.value),
+    smallBlind: Number(els.settingSmallBlind?.value),
+    bigBlind: Number(els.settingBigBlind?.value),
+  };
+}
+
+function getSettingsInteractionMode(gameState, hand) {
+  if (!isRoomHost(gameState)) return SETTINGS_MODE.READONLY;
+  if (isSettingsEditable(gameState, hand)) return SETTINGS_MODE.EDIT;
+  return SETTINGS_MODE.LOCKED;
+}
+
+function validateSettingsDraft(draft) {
+  const startingChips = Math.floor(Number(draft.startingChips));
+  const smallBlind = Math.floor(Number(draft.smallBlind));
+  const bigBlind = Math.floor(Number(draft.bigBlind));
+
+  if (!Number.isFinite(startingChips) || startingChips < SETTINGS_LIMITS.startingChips.min || startingChips > SETTINGS_LIMITS.startingChips.max) {
+    return { ok: false, error: `起始筹码须为 ${SETTINGS_LIMITS.startingChips.min}–${SETTINGS_LIMITS.startingChips.max}` };
+  }
+  if (!Number.isFinite(smallBlind) || smallBlind < SETTINGS_LIMITS.smallBlind.min || smallBlind > SETTINGS_LIMITS.smallBlind.max) {
+    return { ok: false, error: `小盲须为 ${SETTINGS_LIMITS.smallBlind.min}–${SETTINGS_LIMITS.smallBlind.max}` };
+  }
+  if (!Number.isFinite(bigBlind) || bigBlind < SETTINGS_LIMITS.bigBlind.min || bigBlind > SETTINGS_LIMITS.bigBlind.max) {
+    return { ok: false, error: `大盲须为 ${SETTINGS_LIMITS.bigBlind.min}–${SETTINGS_LIMITS.bigBlind.max}` };
+  }
+  if (bigBlind < smallBlind) {
+    return { ok: false, error: '大盲不能小于小盲' };
+  }
+  return { ok: true, draft: { startingChips, smallBlind, bigBlind } };
+}
+
+function isSettingsDraftDirty() {
+  if (!lastSyncedSettingsSnap) return false;
+  return settingsSnapshot(readSettingsDraft()) !== lastSyncedSettingsSnap;
+}
+
+function formatSettingsSummary(settings) {
+  if (!settings) return '—';
+  return `${settings.smallBlind} / ${settings.bigBlind} · 起始 ${settings.startingChips}`;
+}
+
+function getBlindsContextLabel(hand, settings) {
+  if (!settings) return '盲注 —';
+  const summary = `${settings.smallBlind}/${settings.bigBlind}`;
+  if (!hand || hand.phase === 'waiting') return `下局 ${summary}`;
+  if (hand.phase === 'ended' || hand.phase === 'showdown') return `下局 ${summary}`;
+  return `本局 ${summary}`;
+}
+
+function syncSettingsFormValues(settings) {
+  if (!settings) return;
+  els.settingStartingChips.value = settings.startingChips;
+  els.settingSmallBlind.value = settings.smallBlind;
+  els.settingBigBlind.value = settings.bigBlind;
+  lastSyncedSettingsSnap = settingsSnapshot(settings);
+  roomSettingsEditing = false;
+}
+
+function revertSettingsDraft() {
+  const gameState = window.__lastGameState;
+  const hand = window.__lastHandState;
+  const settings = gameState?.roomSettings;
+  if (!settings) return;
+  syncSettingsFormValues(settings);
+  if (els.roomSettingsError) {
+    els.roomSettingsError.hidden = true;
+    els.roomSettingsError.textContent = '';
+  }
+  const mode = getSettingsInteractionMode(gameState, hand);
+  renderRoomSettingsMeta(mode, false);
+  updateSettingsActionState(mode);
+}
+
+function renderSettingsDisplayValues(settings) {
+  if (!settings) return;
+  if (els.displayStartingChips) els.displayStartingChips.textContent = String(settings.startingChips);
+  if (els.displaySmallBlind) els.displaySmallBlind.textContent = String(settings.smallBlind);
+  if (els.displayBigBlind) els.displayBigBlind.textContent = String(settings.bigBlind);
+}
+
+function isSettingsMobileViewport() {
+  return SETTINGS_MOBILE_MQL.matches;
+}
+
+function getSettingsHandPhase(hand) {
+  return hand?.phase ?? 'lobby';
+}
+
+function resolveSettingsExpanded({ mode, hand, dirty, hasValidationError, isMobile, isFirstLobby }) {
+  const phase = getSettingsHandPhase(hand);
+
+  if (dirty || hasValidationError) return true;
+  if (settingsExpandedManual) return false;
+  if (mode === SETTINGS_MODE.LOCKED || mode === SETTINGS_MODE.READONLY) return false;
+
+  if (isFirstLobby) return !settingsEverSaved;
+  if (phase === 'ended') return true;
+  if (phase === 'showdown') return false;
+  if (isMobile) return false;
+  return false;
+}
+
+function maybeScrollSettingsIntoView() {
+  if (!els.roomSettingsBox || els.roomSettingsBox.hidden) return;
+  window.requestAnimationFrame(() => {
+    els.roomSettingsBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+function setSettingsPanelExpanded(expanded) {
+  settingsPanelExpanded = expanded;
+  if (els.roomSettingsBody) els.roomSettingsBody.hidden = !expanded;
+  if (els.btnToggleSettings) els.btnToggleSettings.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  if (els.roomSettingsBox) {
+    els.roomSettingsBox.classList.toggle('is-expanded', expanded);
+    els.roomSettingsBox.classList.toggle('is-collapsed', !expanded);
+  }
+}
+
+function applySettingsExpansion(gameState, hand, mode, dirty, hasValidationError) {
+  const phase = getSettingsHandPhase(hand);
+  const prevMode = lastSettingsMode;
+  const prevPhase = lastSettingsHandPhase;
+  const isFirstLobby = !hand;
+  const isMobile = isSettingsMobileViewport();
+
+  if (IN_HAND_PHASES.has(phase) && !IN_HAND_PHASES.has(prevPhase)) {
+    settingsExpandedManual = false;
+  }
+
+  let nextExpanded;
+  if (dirty || hasValidationError) {
+    settingsExpandedManual = false;
+    nextExpanded = true;
+  } else if (settingsExpandedManual) {
+    nextExpanded = false;
+  } else if (mode !== prevMode || phase !== prevPhase) {
+    nextExpanded = resolveSettingsExpanded({
+      mode,
+      hand,
+      dirty,
+      hasValidationError,
+      isMobile,
+      isFirstLobby,
+    });
+  } else {
+    nextExpanded = settingsPanelExpanded;
+  }
+
+  const wasCollapsed = !settingsPanelExpanded;
+  setSettingsPanelExpanded(nextExpanded);
+
+  if (nextExpanded && wasCollapsed && (dirty || hasValidationError || (isFirstLobby && !settingsEverSaved) || phase === 'ended')) {
+    maybeScrollSettingsIntoView();
+  }
+
+  lastSettingsMode = mode;
+  lastSettingsHandPhase = phase;
+}
+
+function updateSettingsActionState(mode) {
+  const dirty = isSettingsDraftDirty();
+  const validation = validateSettingsDraft(readSettingsDraft());
+  const canSave = mode === SETTINGS_MODE.EDIT && dirty && validation.ok && !settingsSavePending;
+
+  if (els.roomSettingsError) {
+    if (mode === SETTINGS_MODE.EDIT && dirty && !validation.ok) {
+      els.roomSettingsError.hidden = false;
+      els.roomSettingsError.textContent = validation.error;
+    } else {
+      els.roomSettingsError.hidden = true;
+      els.roomSettingsError.textContent = '';
+    }
+  }
+
+  if (els.btnSaveSettings) {
+    els.btnSaveSettings.disabled = !canSave;
+    els.btnSaveSettings.textContent = settingsSavePending ? '保存中…' : dirty ? '保存设置' : '已是最新';
+  }
+  if (els.btnCancelSettings) els.btnCancelSettings.disabled = mode !== SETTINGS_MODE.EDIT || !dirty || settingsSavePending;
+  if (els.btnPresetBlinds1020) els.btnPresetBlinds1020.disabled = mode !== SETTINGS_MODE.EDIT || settingsSavePending;
+  if (els.btnPresetBlinds2550) els.btnPresetBlinds2550.disabled = mode !== SETTINGS_MODE.EDIT || settingsSavePending;
+}
+
+function renderRoomSettingsMeta(mode, dirty) {
+  const meta = {
+    [SETTINGS_MODE.EDIT]: {
+      status: dirty ? '未保存' : '可编辑',
+      tone: dirty ? 'warn' : 'ok',
+      help: dirty ? '你有未保存的修改，保存后下一局开始时生效。' : '修改后点「保存设置」，下一局开始时生效。',
+    },
+    [SETTINGS_MODE.LOCKED]: {
+      status: '局内锁定',
+      tone: 'lock',
+      help: '本局进行中暂不可改。局结束或摊牌后可再次编辑，修改对下一局生效。',
+    },
+    [SETTINGS_MODE.READONLY]: {
+      status: '只读',
+      tone: 'neutral',
+      help: '当前盲注由房主设置，仅房主可在局间修改。',
+    },
+  }[mode];
+
+  if (els.roomSettingsStatus) {
+    els.roomSettingsStatus.textContent = meta.status;
+    els.roomSettingsStatus.dataset.tone = meta.tone;
+  }
+  if (els.roomSettingsHelp) els.roomSettingsHelp.textContent = meta.help;
+}
+
+function renderRoomSettings(gameState, hand) {
+  const settings = gameState?.roomSettings;
+  const effectiveBlinds = hand?.smallBlind != null && hand?.bigBlind != null
+    ? { ...settings, smallBlind: hand.smallBlind, bigBlind: hand.bigBlind }
+    : settings;
+
+  if (els.roomBlindsLabel) {
+    els.roomBlindsLabel.textContent = getBlindsContextLabel(hand, effectiveBlinds);
+  }
+  if (!els.roomSettingsBox) return;
+
+  els.roomSettingsBox.hidden = false;
+
+  const mode = getSettingsInteractionMode(gameState, hand);
+  els.roomSettingsBox.dataset.mode = mode;
+
+  if (els.roomSettingsSummary && settings) {
+    els.roomSettingsSummary.textContent = formatSettingsSummary(settings);
+  }
+
+  renderSettingsDisplayValues(settings);
+
+  const serverSnap = settingsSnapshot(settings);
+  const shouldSyncValues = Boolean(
+    settings
+    && mode === SETTINGS_MODE.EDIT
+    && !roomSettingsEditing
+    && !settingsSavePending
+    && !isSettingsDraftDirty()
+    && serverSnap !== lastSyncedSettingsSnap,
+  );
+  if (shouldSyncValues) syncSettingsFormValues(settings);
+  if (mode === SETTINGS_MODE.EDIT && !lastSyncedSettingsSnap && settings) {
+    syncSettingsFormValues(settings);
+  }
+
+  const dirty = isSettingsDraftDirty();
+  const validation = validateSettingsDraft(readSettingsDraft());
+  const hasValidationError = mode === SETTINGS_MODE.EDIT && dirty && !validation.ok;
+
+  applySettingsExpansion(gameState, hand, mode, dirty, hasValidationError);
+
+  const showForm = mode === SETTINGS_MODE.EDIT;
+  if (els.roomSettingsForm) els.roomSettingsForm.hidden = !showForm;
+  if (els.roomSettingsDisplay) els.roomSettingsDisplay.hidden = showForm;
+
+  renderRoomSettingsMeta(mode, dirty);
+  updateSettingsActionState(mode);
+}
+
 /** 仅渲染服务端 gameState */
 function renderHandHistory(entries) {
   const list = entries || [];
@@ -637,12 +961,17 @@ function renderGameState(gameState) {
   const { players, hand } = gameState;
   window.__lastHandState = hand;
 
+  if ((gameState.handHistory?.length ?? 0) > 0) {
+    settingsEverSaved = true;
+  }
+
   if (hand && hand.phase !== 'waiting' && hand.phase !== 'ended' && startHandPending) {
     resetStartHandPending();
   }
 
   els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
   renderHandHistory(gameState.handHistory);
+  renderRoomSettings(gameState, hand);
 
   if (!hand) {
     els.gamePhase.textContent = '大厅';
@@ -676,7 +1005,7 @@ function renderGameState(gameState) {
     lastRenderedHandPhase = null;
     clearActionTimer();
     const eligibleCount = countStartEligiblePlayers(players);
-    const isHost = gameState.hostPlayerId === myPlayerId;
+    const isHost = isRoomHost(gameState);
     els.btnStartHand.hidden = false;
     els.btnStartHand.disabled = startHandPending || eligibleCount < 2 || !isHost;
     els.btnStartHand.textContent = startHandPending
@@ -761,7 +1090,7 @@ function renderGameState(gameState) {
   const inHand = isHandInProgress(hand);
   const eligibleCount = countStartEligiblePlayers(players);
   const canStartNew = hand.canStart && eligibleCount >= 2 && !inHand;
-  const isHost = gameState.hostPlayerId === myPlayerId;
+  const isHost = isRoomHost(gameState);
   els.btnStartHand.hidden = !canStartNew;
   els.btnStartHand.disabled = startHandPending || !canStartNew || !isHost;
   els.btnStartHand.textContent = startHandPending
@@ -845,6 +1174,14 @@ function clearRoomView() {
   betPanelOpen = false;
   resetResultPanelTiming();
   lastRenderedHandPhase = null;
+  lastSettingsMode = null;
+  lastSettingsHandPhase = null;
+  settingsPanelExpanded = false;
+  settingsExpandedManual = false;
+  settingsEverSaved = false;
+  lastSyncedSettingsSnap = '';
+  roomSettingsEditing = false;
+  if (els.roomSettingsBox) els.roomSettingsBox.hidden = true;
   document.body.classList.remove('bet-panel-open');
   setEntryMode();
   setDockVisible(false);
@@ -948,6 +1285,77 @@ els.btnJoin.addEventListener('click', () => {
   });
 });
 
+function saveRoomSettings() {
+  if (settingsSavePending || !socket.connected) return;
+  const validation = validateSettingsDraft(readSettingsDraft());
+  if (!validation.ok) {
+    if (els.roomSettingsError) {
+      els.roomSettingsError.hidden = false;
+      els.roomSettingsError.textContent = validation.error;
+    }
+    updateSettingsActionState(SETTINGS_MODE.EDIT);
+    return;
+  }
+
+  settingsSavePending = true;
+  updateSettingsActionState(SETTINGS_MODE.EDIT);
+  socket.emit('room:settings', validation.draft, (res) => {
+    settingsSavePending = false;
+    if (!res?.ok) {
+      showRoomNotice(res?.error || '保存失败', 'error');
+      updateSettingsActionState(SETTINGS_MODE.EDIT);
+      return;
+    }
+    roomSettingsEditing = false;
+    settingsEverSaved = true;
+    settingsExpandedManual = false;
+    lastSyncedSettingsSnap = settingsSnapshot(res.settings || res.gameState?.roomSettings);
+    renderGameState(res.gameState);
+    showRoomNotice('盲注设置已保存，下一局生效', 'success');
+  });
+}
+
+function applyBlindPreset(smallBlind, bigBlind) {
+  if (getSettingsInteractionMode(window.__lastGameState, window.__lastHandState) !== SETTINGS_MODE.EDIT) return;
+  els.settingSmallBlind.value = String(smallBlind);
+  els.settingBigBlind.value = String(bigBlind);
+  roomSettingsEditing = true;
+  updateSettingsActionState(SETTINGS_MODE.EDIT);
+}
+
+function bindRoomSettingsInputs() {
+  [els.settingStartingChips, els.settingSmallBlind, els.settingBigBlind].forEach((input) => {
+    if (!input) return;
+    input.addEventListener('focus', () => {
+      roomSettingsEditing = true;
+    });
+    input.addEventListener('input', () => {
+      roomSettingsEditing = true;
+      updateSettingsActionState(SETTINGS_MODE.EDIT);
+    });
+    input.addEventListener('blur', () => {
+      window.setTimeout(() => {
+        const active = document.activeElement;
+        const settingsInputs = [els.settingStartingChips, els.settingSmallBlind, els.settingBigBlind];
+        if (!settingsInputs.includes(active)) roomSettingsEditing = false;
+      }, 0);
+    });
+  });
+}
+
+bindRoomSettingsInputs();
+
+els.btnToggleSettings?.addEventListener('click', () => {
+  const next = !settingsPanelExpanded;
+  setSettingsPanelExpanded(next);
+  settingsExpandedManual = !next;
+});
+
+els.btnSaveSettings?.addEventListener('click', saveRoomSettings);
+els.btnCancelSettings?.addEventListener('click', revertSettingsDraft);
+els.btnPresetBlinds1020?.addEventListener('click', () => applyBlindPreset(10, 20));
+els.btnPresetBlinds2550?.addEventListener('click', () => applyBlindPreset(25, 50));
+
 els.btnStartHand.addEventListener('click', () => {
   if (startHandPending) return;
   if (els.btnStartHand.disabled) {
@@ -956,7 +1364,7 @@ els.btnStartHand.addEventListener('click', () => {
       return;
     }
     const gameState = window.__lastGameState;
-    const isHost = gameState?.hostPlayerId === myPlayerId;
+    const isHost = isRoomHost(gameState);
     if (!isHost) {
       showRoomNotice('只有房主可以开始新一局', 'error');
       return;

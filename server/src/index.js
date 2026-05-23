@@ -214,6 +214,28 @@ io.on('connection', (socket) => {
     console.log(`[game:start] ${roomId}`);
   });
 
+  socket.on('room:settings', (payload, ack) => {
+    const { roomId, room, player } = getRoomAndPlayer(socket);
+    if (!roomId || !player) {
+      ack?.({ ok: false, error: '未在房间中' });
+      return;
+    }
+    if (!room) {
+      ack?.({ ok: false, error: '房间不存在' });
+      return;
+    }
+
+    const result = roomManager.updateRoomSettings(roomId, player.id, payload);
+    if (!result.ok) {
+      ack?.(result);
+      return;
+    }
+
+    broadcastGameState(room);
+    ack?.({ ok: true, settings: result.settings, gameState: buildGameState(room, player.id) });
+    console.log(`[room:settings] ${roomId} chips=${result.settings.startingChips} blinds=${result.settings.smallBlind}/${result.settings.bigBlind}`);
+  });
+
   socket.on('game:action', ({ action, amount }, ack) => {
     const { room, player } = getRoomAndPlayer(socket);
     if (!player) {

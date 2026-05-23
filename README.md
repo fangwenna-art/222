@@ -14,6 +14,7 @@
 - 底部固定操作栏（过牌 / 跟注 / 下注 / 加注 / 弃牌 / 全下）
 - 局结束：桌心一行摘要 + 延迟展开结果面板（结算明细与亮牌）
 - 房间保留最近 10 局摘要（「最近局数」列表）
+- 房主可在局间配置起始筹码与小盲 / 大盲（`room:settings`，下一局生效）
 
 ## 目录结构
 
@@ -204,6 +205,7 @@ https://your-domain.com/socket.io/
 | C→S | `room:join` | 加入已有房间 |
 | C→S | `room:resume` | 断线后恢复身份与状态 |
 | C→S | `room:leave` | 离开房间 |
+| C→S | `room:settings` | 房主修改 `{ startingChips?, smallBlind?, bigBlind? }`（仅局间） |
 | C→S | `game:start` | 开始新一局（房主） |
 | C→S | `game:action` | `{ action, amount? }` — fold / check / call / bet / raise / allin |
 | S→C | `gameState` | 广播完整状态 |

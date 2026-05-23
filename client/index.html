@@ -42,7 +42,53 @@
       <div class="phase-bar">
         <span id="gamePhase" class="phase-tag">waiting</span>
         <span class="pot-label" id="roomPlayerSummary">玩家 0/9</span>
+        <span id="roomBlindsLabel" class="pot-label room-blinds-label" aria-live="polite">盲注 —</span>
       </div>
+
+      <section id="roomSettingsBox" class="room-settings" data-mode="readonly" hidden aria-label="盲注设置">
+        <button id="btnToggleSettings" type="button" class="room-settings-toggle" aria-expanded="false" aria-controls="roomSettingsBody">
+          <span class="room-settings-toggle-main">
+            <span class="room-settings-kicker">盲注设置</span>
+            <span id="roomSettingsSummary" class="room-settings-summary">10 / 20 · 起始 1000</span>
+          </span>
+          <span id="roomSettingsStatus" class="room-settings-status" data-tone="neutral">只读</span>
+        </button>
+
+        <div id="roomSettingsBody" class="room-settings-body" hidden>
+          <p id="roomSettingsHelp" class="room-settings-help">—</p>
+
+          <dl id="roomSettingsDisplay" class="room-settings-display">
+            <div><dt>起始筹码</dt><dd id="displayStartingChips">—</dd></div>
+            <div><dt>小盲</dt><dd id="displaySmallBlind">—</dd></div>
+            <div><dt>大盲</dt><dd id="displayBigBlind">—</dd></div>
+          </dl>
+
+          <div id="roomSettingsForm" class="room-settings-form" hidden>
+            <div class="room-settings-grid">
+              <label class="room-settings-field">
+                <span>起始筹码</span>
+                <input id="settingStartingChips" type="number" min="100" max="100000" step="100" inputmode="numeric" autocomplete="off" />
+              </label>
+              <label class="room-settings-field">
+                <span>小盲</span>
+                <input id="settingSmallBlind" type="number" min="1" max="5000" step="1" inputmode="numeric" autocomplete="off" />
+              </label>
+              <label class="room-settings-field">
+                <span>大盲</span>
+                <input id="settingBigBlind" type="number" min="2" max="10000" step="1" inputmode="numeric" autocomplete="off" />
+              </label>
+            </div>
+            <p id="roomSettingsError" class="room-settings-error" hidden role="alert"></p>
+            <div class="room-settings-actions">
+              <button id="btnPresetBlinds1020" type="button" class="btn-secondary">10 / 20</button>
+              <button id="btnPresetBlinds2550" type="button" class="btn-secondary">25 / 50</button>
+              <button id="btnCancelSettings" type="button" class="btn-secondary">取消</button>
+              <button id="btnSaveSettings" type="button">保存设置</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <p id="gameMessage" class="game-message">—</p>
       <p id="actionTimer" class="action-timer" hidden>—</p>
 

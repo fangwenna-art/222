@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { GameEngine } from './gameEngine.js';
+import { DEFAULT_GAME_SETTINGS, GameEngine } from './gameEngine.js';
 
 const OFFLINE_AUTO_FOLD_MS = Number(process.env.OFFLINE_AUTO_FOLD_MS || 30000);
 const ACTION_TIMEOUT_MS = Number(process.env.ACTION_TIMEOUT_MS || 30000);
@@ -48,6 +48,40 @@ function buildHandHistorySummary(engine) {
   return `${entries.length} 位赢家 · 共 ${total}`;
 }
 
+function createDefaultRoomSettings() {
+  return { ...DEFAULT_GAME_SETTINGS };
+}
+
+function parseRoomSettings(payload, current = createDefaultRoomSettings()) {
+  const startingChips = payload?.startingChips != null
+    ? Math.floor(Number(payload.startingChips))
+    : current.startingChips;
+  const smallBlind = payload?.smallBlind != null
+    ? Math.floor(Number(payload.smallBlind))
+    : current.smallBlind;
+  const bigBlind = payload?.bigBlind != null
+    ? Math.floor(Number(payload.bigBlind))
+    : current.bigBlind;
+
+  if (!Number.isFinite(startingChips) || startingChips < 100 || startingChips > 100000) {
+    return { ok: false, error: '起始筹码须为 100–100000' };
+  }
+  if (!Number.isFinite(smallBlind) || smallBlind < 1 || smallBlind > 5000) {
+    return { ok: false, error: '小盲须为 1–5000' };
+  }
+  if (!Number.isFinite(bigBlind) || bigBlind < 2 || bigBlind > 10000) {
+    return { ok: false, error: '大盲须为 2–10000' };
+  }
+  if (bigBlind < smallBlind) {
+    return { ok: false, error: '大盲不能小于小盲' };
+  }
+
+  return {
+    ok: true,
+    settings: { startingChips, smallBlind, bigBlind },
+  };
+}
+
 function generateRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
@@ -77,6 +111,7 @@ function createRoom(roomId) {
     showdownTimer: null,
     handHistory: [],
     lastHistorySignature: '',
+    settings: createDefaultRoomSettings(),
   };
 }
 
@@ -217,6 +252,7 @@ export class RoomManager {
     const roomId = generateRoomId();
     const room = createRoom(roomId);
     const player = createPlayer(playerName);
+    player.chips = room.settings.startingChips;
     room.players.set(player.id, player);
     room.hostPlayerId = player.id;
     this.rooms.set(roomId, room);
@@ -231,6 +267,7 @@ export class RoomManager {
     if (room.players.size >= MAX_PLAYERS_PER_ROOM) return { ok: false, error: '房间已满' };
 
     const player = createPlayer(playerName);
+    player.chips = room.settings.startingChips;
     room.players.set(player.id, player);
     this.tokenIndex.set(player.token, { roomId: id, playerId: player.id });
     return { ok: true, room, player };
@@ -294,6 +331,9 @@ export class RoomManager {
     const engine = new GameEngine(roomId, entries, {
       startingChipsByPlayerId: Object.fromEntries(entries.map(([id, player]) => [id, player.chips]).filter(([, chips]) => chips != null)),
       dealerPlayerId: room.dealerSeatId,
+      smallBlind: room.settings.smallBlind,
+      bigBlind: room.settings.bigBlind,
+      defaultStartingChips: room.settings.startingChips,
     });
 
     const result = engine.startHand();
@@ -304,6 +344,30 @@ export class RoomManager {
     this.clearShowdownTimer(room);
     this._afterEngineMutation(room);
     return { ok: true, room };
+  }
+
+  updateRoomSettings(roomId, requesterPlayerId, payload) {
+    const room = this.rooms.get(roomId);
+    if (!room) return { ok: false, error: '房间不存在' };
+    this._ensureHost(room);
+    if (room.hostPlayerId && requesterPlayerId && requesterPlayerId !== room.hostPlayerId) {
+      return { ok: false, error: '只有房主可以修改房间设置' };
+    }
+    if (room.engine && !room.engine.canConfigureRoom()) {
+      return { ok: false, error: '牌局进行中，无法修改设置' };
+    }
+
+    const parsed = parseRoomSettings(payload, room.settings);
+    if (!parsed.ok) return parsed;
+
+    room.settings = parsed.settings;
+    if (!room.engine) {
+      for (const player of room.players.values()) {
+        player.chips = room.settings.startingChips;
+      }
+    }
+
+    return { ok: true, room, settings: room.settings };
   }
 
   applyAction(room, player, action, amount) {
@@ -400,6 +464,8 @@ export class RoomManager {
         wasShowdown,
         endedAt,
       })),
+      roomSettings: { ...room.settings },
+      canEditSettings: !room.engine || room.engine.canConfigureRoom(),
     };
   }
 

@@ -7,7 +7,12 @@ const RANK_LABEL = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
 const START_CHIPS = 1000;
 const SMALL_BLIND = 10;
 const BIG_BLIND = 20;
-const RAISE_STEP = 20;
+
+export const DEFAULT_GAME_SETTINGS = {
+  startingChips: START_CHIPS,
+  smallBlind: SMALL_BLIND,
+  bigBlind: BIG_BLIND,
+};
 
 const PHASES = ['waiting', 'preflop', 'flop', 'turn', 'river', 'showdown', 'ended'];
 
@@ -44,7 +49,7 @@ export class GameEngine {
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;
-    this.lastRaiseAmount = BIG_BLIND;
+    this.lastRaiseAmount = this.bigBlind;
     this.dealerIndex = this._initialDealerIndex(options.dealerPlayerId);
     this.smallBlindId = null;
     this.bigBlindId = null;
@@ -61,9 +66,12 @@ export class GameEngine {
     this.onlineStatus = {};
     this.seats = {};
     this.startingChipsByPlayerId = options.startingChipsByPlayerId || {};
+    this.smallBlind = options.smallBlind ?? SMALL_BLIND;
+    this.bigBlind = options.bigBlind ?? BIG_BLIND;
+    this.defaultStartingChips = options.defaultStartingChips ?? START_CHIPS;
     for (const id of this.order) {
       this.seats[id] = {
-        chips: this.startingChipsByPlayerId[id] ?? START_CHIPS,
+        chips: this.startingChipsByPlayerId[id] ?? this.defaultStartingChips,
         bet: 0,
         totalBet: 0,
         folded: false,
@@ -92,6 +100,10 @@ export class GameEngine {
     return this.phase === 'waiting' || this.phase === 'ended';
   }
 
+  canConfigureRoom() {
+    return this.phase === 'waiting' || this.phase === 'ended' || this.phase === 'showdown';
+  }
+
   startHand() {
     const active = this.order.filter((id) => this.seats[id].chips > 0);
     if (active.length < 2) {
@@ -104,7 +116,7 @@ export class GameEngine {
     this.community = [];
     this.pot = 0;
     this.currentBet = 0;
-    this.lastRaiseAmount = BIG_BLIND;
+    this.lastRaiseAmount = this.bigBlind;
     this.winners = [];
     this.showdownHands = [];
     this.showdownPending = false;
@@ -129,15 +141,15 @@ export class GameEngine {
     this.smallBlindId = this.order[smallBlindIndex];
     this.bigBlindId = this.order[bigBlindIndex];
 
-    this._postBlind(this.smallBlindId, SMALL_BLIND);
-    this._log(this.smallBlindId, 'smallBlind', SMALL_BLIND);
-    this._postBlind(this.bigBlindId, BIG_BLIND);
-    this._log(this.bigBlindId, 'bigBlind', BIG_BLIND);
-    this.currentBet = BIG_BLIND;
-    this.lastRaiseAmount = BIG_BLIND;
+    this._postBlind(this.smallBlindId, this.smallBlind);
+    this._log(this.smallBlindId, 'smallBlind', this.smallBlind);
+    this._postBlind(this.bigBlindId, this.bigBlind);
+    this._log(this.bigBlindId, 'bigBlind', this.bigBlind);
+    this.currentBet = this.bigBlind;
+    this.lastRaiseAmount = this.bigBlind;
     this.activeIndex = firstActorIndex;
     this._skipUnavailableActors();
-    this.message = `${this.names[this.smallBlindId]} 下小盲 ${SMALL_BLIND}，${this.names[this.bigBlindId]} 下大盲 ${BIG_BLIND}`;
+    this.message = `${this.names[this.smallBlindId]} 下小盲 ${this.smallBlind}，${this.names[this.bigBlindId]} 下大盲 ${this.bigBlind}`;
     return { ok: true };
   }
 
@@ -243,7 +255,7 @@ export class GameEngine {
 
   _resetBets() {
     this.currentBet = 0;
-    this.lastRaiseAmount = BIG_BLIND;
+    this.lastRaiseAmount = this.bigBlind;
     this.lastRaiserId = null;
     for (const id of this.order) {
       this.seats[id].bet = 0;
@@ -345,7 +357,7 @@ export class GameEngine {
     }
   }
 
-  applyAction(playerId, action, amount = RAISE_STEP) {
+  applyAction(playerId, action, amount) {
     if (!PHASES.includes(this.phase) || this.phase === 'waiting' || this.phase === 'ended' || this.phase === 'showdown') {
       return { ok: false, error: '当前不可操作' };
     }
@@ -384,7 +396,7 @@ export class GameEngine {
     } else if (action === 'bet') {
       if (this.currentBet > 0) return { ok: false, error: '已有下注，请 Call 或 Raise' };
       if (!hasAmount) return { ok: false, error: '请输入下注金额' };
-      const minBet = BIG_BLIND;
+      const minBet = this.bigBlind;
       const betAmount = wholeAmount;
       if (betAmount < minBet) return { ok: false, error: `最小下注 ${minBet}` };
       if (betAmount > seat.chips) return { ok: false, error: '筹码不足，可选择 All-in' };
@@ -600,8 +612,8 @@ export class GameEngine {
   _availableActionsFor(viewerId) {
     const seat = this.seats[viewerId];
     const activePlayerId = this.activeIndex >= 0 ? this.order[this.activeIndex] : null;
-    const minBet = BIG_BLIND;
-    const minRaise = this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND;
+    const minBet = this.bigBlind;
+    const minRaise = this.currentBet > 0 ? this.lastRaiseAmount : this.bigBlind;
     const toCall = seat ? Math.max(0, this.currentBet - seat.bet) : 0;
     const isActive = Boolean(seat && activePlayerId === viewerId && !this.canStart() && this.phase !== 'showdown');
     const canAct = isActive && !seat.folded && !seat.allIn && seat.chips > 0;
@@ -634,10 +646,10 @@ export class GameEngine {
       dealerId: this.order[this.dealerIndex] ?? null,
       smallBlindId: this.smallBlindId,
       bigBlindId: this.bigBlindId,
-      smallBlind: SMALL_BLIND,
-      bigBlind: BIG_BLIND,
-      minRaise: this.currentBet > 0 ? this.lastRaiseAmount : BIG_BLIND,
-      minBet: BIG_BLIND,
+      smallBlind: this.smallBlind,
+      bigBlind: this.bigBlind,
+      minRaise: this.currentBet > 0 ? this.lastRaiseAmount : this.bigBlind,
+      minBet: this.bigBlind,
       availableActions,
       actionLogs: this.actionLogs.slice(-12),
       communityCards: this.community.map(cardLabel),

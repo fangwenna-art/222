@@ -447,6 +447,219 @@ body.room-active .poker-table {
   font-size: 0.6875rem;
 }
 
+.room-blinds-label {
+  margin-left: auto;
+}
+
+.room-settings {
+  margin: 0 0 10px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(51, 65, 85, 0.72);
+  overflow: hidden;
+}
+
+.room-settings[data-mode="edit"] {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.room-settings[data-mode="locked"] {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.room-settings[data-mode="readonly"] {
+  border-color: rgba(100, 116, 139, 0.45);
+}
+
+.room-settings-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.room-settings-toggle-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.room-settings-summary {
+  font-size: 0.8125rem;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-settings-status {
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.85);
+  color: #cbd5e1;
+}
+
+.room-settings-status[data-tone="ok"] {
+  background: rgba(20, 83, 45, 0.85);
+  color: #bbf7d0;
+}
+
+.room-settings-status[data-tone="warn"] {
+  background: rgba(120, 53, 15, 0.85);
+  color: #fde68a;
+}
+
+.room-settings-status[data-tone="lock"] {
+  background: rgba(113, 63, 18, 0.85);
+  color: #fcd34d;
+}
+
+.room-settings-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(51, 65, 85, 0.55);
+}
+
+.room-settings-help {
+  margin: 10px 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.room-settings-display {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.room-settings-display div {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.room-settings-display dt {
+  margin: 0 0 4px;
+  font-size: 0.6875rem;
+  color: #94a3b8;
+}
+
+.room-settings-display dd {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.room-settings-error {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
+.room-settings.is-expanded .room-settings-toggle {
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.room-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.room-settings-kicker {
+  font-size: 0.5625rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+}
+
+.room-settings-hint {
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.room-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.room-settings-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.6875rem;
+  color: #94a3b8;
+}
+
+.room-settings-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(71, 85, 105, 0.8);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  font-size: 16px;
+}
+
+.room-settings-toggle::after {
+  content: '›';
+  flex: 0 0 auto;
+  font-size: 1rem;
+  color: #64748b;
+  transform: rotate(90deg);
+  transition: transform 0.15s ease;
+}
+
+.room-settings.is-expanded .room-settings-toggle::after {
+  transform: rotate(-90deg);
+}
+
+.room-settings.is-collapsed[data-mode="edit"] .room-settings-status[data-tone="warn"] {
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.45);
+  animation: settings-dirty-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes settings-dirty-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+.room-settings-field input:disabled {
+  opacity: 0.65;
+}
+
+.room-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.room-settings-actions button {
+  flex: 1 1 auto;
+}
+
+@media (max-width: 520px) {
+  .room-settings-grid,
+  .room-settings-display {
+    grid-template-columns: 1fr;
+  }
+}
+
 .community-cards {
   display: flex;
   justify-content: center;

@@ -178,4 +178,39 @@ manager.clearActionTimer(room);
   historyManager.clearShowdownTimer(historyRoom);
 }
 
+{
+  const settingsManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room: settingsRoom, player: host } = settingsManager.createRoom('A');
+  const guestJoin = settingsManager.joinRoom(settingsRoom.id, 'B');
+  assert(guestJoin.ok, 'settings room should accept guest');
+  assert(settingsRoom.settings.startingChips === 1000, 'default starting chips should be 1000');
+  assert(host.chips === 1000 && guestJoin.player.chips === 1000, 'lobby players should show starting chips');
+
+  const denied = settingsManager.updateRoomSettings(settingsRoom.id, guestJoin.player.id, { smallBlind: 5, bigBlind: 10 });
+  assert(!denied.ok && denied.error.includes('房主'), 'non-host should not update settings');
+
+  const updated = settingsManager.updateRoomSettings(settingsRoom.id, host.id, {
+    startingChips: 2000,
+    smallBlind: 25,
+    bigBlind: 50,
+  });
+  assert(updated.ok, 'host should update room settings');
+  assert(settingsRoom.settings.smallBlind === 25 && settingsRoom.settings.bigBlind === 50, 'blinds should persist on room');
+  assert(host.chips === 2000 && guestJoin.player.chips === 2000, 'lobby chips should reset to new starting stack');
+
+  settingsManager.startHand(settingsRoom.id, host.id);
+  assert(settingsRoom.engine.smallBlind === 25 && settingsRoom.engine.bigBlind === 50, 'engine should use room blinds');
+
+  const blocked = settingsManager.updateRoomSettings(settingsRoom.id, host.id, { smallBlind: 1 });
+  assert(!blocked.ok && blocked.error.includes('进行中'), 'settings should be blocked during active hand');
+  settingsRoom.engine.phase = 'showdown';
+  const duringShowdown = settingsManager.updateRoomSettings(settingsRoom.id, host.id, { smallBlind: 30, bigBlind: 60 });
+  assert(duringShowdown.ok, 'host should update settings during showdown');
+  assert(settingsRoom.settings.smallBlind === 30, 'showdown settings update should persist');
+  settingsRoom.engine.phase = 'ended';
+  settingsManager.syncChipsFromEngine(settingsRoom);
+  settingsManager.clearActionTimer(settingsRoom);
+  settingsManager.clearShowdownTimer(settingsRoom);
+}
+
 console.log('全部房间控制测试通过');
