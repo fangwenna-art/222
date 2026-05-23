@@ -106,6 +106,34 @@ let lastHandResultSignature = '';
 let lastRenderedHandPhase = null;
 let dockResizeObserver = null;
 let startHandPending = false;
+let resultPanelRevealTimer = null;
+let resultPanelDelayUntil = 0;
+
+const RESULT_PANEL_DELAY_MS = 600;
+
+function clearResultPanelRevealTimer() {
+  if (resultPanelRevealTimer) {
+    clearTimeout(resultPanelRevealTimer);
+    resultPanelRevealTimer = null;
+  }
+}
+
+function scheduleResultPanelReveal() {
+  clearResultPanelRevealTimer();
+  const delay = Math.max(0, resultPanelDelayUntil - Date.now());
+  resultPanelRevealTimer = setTimeout(() => {
+    resultPanelRevealTimer = null;
+    const hand = getCurrentHand();
+    if (hand?.phase === 'ended') renderResultPanel(hand);
+  }, delay);
+}
+
+function resetResultPanelTiming() {
+  clearResultPanelRevealTimer();
+  resultPanelDelayUntil = 0;
+  resultPanelOpen = false;
+  lastHandResultSignature = '';
+}
 
 function updateLayoutMetrics() {
   const dockHeight = els.bottomDock.hidden ? 0 : Math.ceil(els.bottomDock.getBoundingClientRect().height);
@@ -231,22 +259,60 @@ function winnerCardsHtml(cards) {
   return `<div class="winner-cards">${cards.map(cardHtml).join('')}</div>`;
 }
 
+function buildTableEndSummary(hand) {
+  const winners = hand?.winners || [];
+  if (!winners.length) return '本局结束';
+
+  const totalsById = new Map();
+  winners.forEach((winner) => {
+    const current = totalsById.get(winner.id) || {
+      name: winner.name,
+      amount: 0,
+      handName: winner.handName,
+    };
+    current.amount += winner.amount;
+    if (winner.handName) current.handName = winner.handName;
+    totalsById.set(winner.id, current);
+  });
+
+  const entries = [...totalsById.values()];
+  if (entries.length === 1) {
+    const entry = entries[0];
+    const handHint = entry.handName ? ` · ${entry.handName}` : '';
+    return `${entry.name} 获胜 +${entry.amount}${handHint}`;
+  }
+
+  if (entries.length === 2) {
+    return entries
+      .map((entry) => {
+        const handHint = entry.handName ? ` · ${entry.handName}` : '';
+        return `${entry.name} +${entry.amount}${handHint}`;
+      })
+      .join(' · ');
+  }
+
+  const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  return `${entries.length} 位赢家 · 共 ${total}`;
+}
+
 function shortTableMessage(hand) {
   if (!hand) return '等待玩家入座';
   if (hand.phase === 'showdown') {
-    return hand.message || '摊牌中…';
+    const topHands = (hand.showdownHands || [])
+      .slice(0, 3)
+      .map((entry) => `${entry.name} ${entry.handName}`)
+      .join(' · ');
+    return topHands ? `亮牌 · ${topHands}` : '摊牌中…';
   }
   if (hand.phase === 'ended') {
-    const winners = hand.winners || [];
-    if (!winners.length) return '本局结束';
-    if (winners.length === 1) return `${winners[0].name} 获胜`;
-    const uniqueNames = [...new Set(winners.map((w) => w.name))];
-    if (uniqueNames.length === 1) return `${uniqueNames[0]} 获胜`;
-    return `本局结束 · ${uniqueNames.length} 位赢家`;
+    return buildTableEndSummary(hand);
   }
   const activeSeat = hand.seats?.find((seat) => seat.id === hand.activePlayerId);
   if (activeSeat) return `轮到 ${activeSeat.name}`;
-  return PHASE_LABEL[hand.phase] || hand.message || '—';
+  if (hand.phase && hand.phase !== 'waiting') {
+    return PHASE_LABEL[hand.phase] || '—';
+  }
+  return hand.message || '—';
 }
 
 function formatWinnerDetail(winner) {
@@ -272,32 +338,6 @@ function buildWinnerRow(winner, seat, className, includeCards = false) {
 
 function isHandInProgress(hand) {
   return Boolean(hand && hand.phase !== 'waiting' && hand.phase !== 'ended' && hand.phase !== 'showdown');
-}
-
-function renderShowdownRevealList(hand) {
-  els.resultSummaryList.innerHTML = '';
-  const revealEntries = (hand.showdownHands || []).filter((entry) => entry.id !== myPlayerId);
-  if (!revealEntries.length) return '';
-
-  const seatById = new Map((hand.seats || []).map((seat) => [seat.id, seat]));
-  const header = document.createElement('li');
-  header.className = 'winner-reveal-kicker';
-  header.textContent = '亮牌';
-  els.resultSummaryList.appendChild(header);
-
-  revealEntries.forEach((entry) => {
-    const seat = seatById.get(entry.id);
-    const li = document.createElement('li');
-    li.className = 'winner-reveal-item';
-    li.innerHTML = `
-      <strong>${entry.name}</strong>
-      <span class="winner-reveal-hand">${entry.handName || '—'}</span>
-      ${winnerCardsHtml(seat?.holeCards)}
-    `;
-    els.resultSummaryList.appendChild(li);
-  });
-
-  return '摊牌中';
 }
 
 function renderResultSummary(hand) {
@@ -348,36 +388,35 @@ function renderResultPanel(hand) {
   const isShowdown = hand?.phase === 'showdown';
   const isEnded = hand?.phase === 'ended';
 
-  if (isShowdown) {
-    const hasReveal = (hand.showdownHands?.length ?? 0) > 0;
-    els.resultPanel.hidden = !hasReveal;
-    els.resultPanel.classList.remove('is-ended');
-    els.resultPanel.classList.add('is-showdown');
-    els.resultSummaryList.hidden = !hasReveal;
-    els.resultLogKicker.hidden = true;
-    els.resultLogList.innerHTML = '';
-    els.resultLatest.textContent = '亮牌中…';
-    els.resultKicker.textContent = renderShowdownRevealList(hand) || '摊牌中';
-    resultPanelOpen = true;
-    els.resultPanelBody.hidden = false;
-    els.btnToggleResult.classList.add('is-open');
-    return;
-  }
-
-  els.resultPanel.classList.remove('is-showdown');
-
-  if (!isEnded) {
+  if (isShowdown || !isEnded) {
     els.resultPanel.hidden = true;
     els.resultPanel.classList.remove('is-ended', 'is-showdown');
-    resultPanelOpen = false;
     els.resultPanelBody.hidden = true;
     els.btnToggleResult.classList.remove('is-open');
     return;
   }
 
+  els.resultPanel.classList.remove('is-showdown');
+
   const hasLogs = hand.actionLogs?.length;
   const hasWinners = hand.winners?.length;
   const showPanel = Boolean(hasWinners || hasLogs);
+  const resultSignature = handResultSignature(hand);
+  const hasResultLogs = hand.actionLogs.some((log) => log.action === 'settle' || log.action === 'win');
+
+  if (resultSignature && resultSignature !== lastHandResultSignature) {
+    lastHandResultSignature = resultSignature;
+    resultPanelDelayUntil = Date.now() + RESULT_PANEL_DELAY_MS;
+    resultPanelOpen = false;
+  }
+
+  if (Date.now() < resultPanelDelayUntil) {
+    els.resultPanel.hidden = true;
+    els.resultPanelBody.hidden = true;
+    els.btnToggleResult.classList.remove('is-open');
+    scheduleResultPanelReveal();
+    return;
+  }
 
   els.resultPanel.hidden = !showPanel;
   if (!showPanel) {
@@ -388,17 +427,14 @@ function renderResultPanel(hand) {
     return;
   }
 
+  if (hasResultLogs && !resultPanelOpen) {
+    resultPanelOpen = true;
+  }
+
   els.resultPanel.classList.add('is-ended');
   const summaryKicker = renderResultSummary(hand);
   els.resultSummaryList.hidden = !hasWinners;
   els.resultLogKicker.hidden = !hasWinners || !hasLogs;
-
-  const hasResultLogs = hand.actionLogs.some((log) => log.action === 'settle' || log.action === 'win');
-  const resultSignature = handResultSignature(hand);
-  if (resultSignature && resultSignature !== lastHandResultSignature) {
-    if (hasResultLogs) resultPanelOpen = true;
-    lastHandResultSignature = resultSignature;
-  }
 
   const logs = hand.actionLogs.slice().reverse();
   els.resultLatest.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
@@ -594,8 +630,7 @@ function renderGameState(gameState) {
     scrollToMySeat();
     els.resultPanel.hidden = true;
     els.resultPanel.classList.remove('is-ended');
-    resultPanelOpen = false;
-    lastHandResultSignature = '';
+    resetResultPanelTiming();
     lastRenderedHandPhase = null;
     clearActionTimer();
     const onlineCount = countOnlinePlayers(players);
@@ -626,7 +661,7 @@ function renderGameState(gameState) {
   els.gamePot.textContent = isEnded ? '' : String(hand.pot);
   els.gameMessage.textContent = shortTableMessage(hand);
   els.tableMessage.textContent = shortTableMessage(hand);
-  els.tableMessage.className = 'table-message';
+  els.tableMessage.className = `table-message${isEnded ? ' is-ended' : ''}`;
   renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
@@ -675,11 +710,7 @@ function renderGameState(gameState) {
   scrollToMySeat();
 
   if (lastRenderedHandPhase === 'ended' && isHandInProgress(hand)) {
-    resultPanelOpen = false;
-    lastHandResultSignature = '';
-  }
-  if (lastRenderedHandPhase === 'showdown' && hand.phase === 'ended') {
-    resultPanelOpen = true;
+    resetResultPanelTiming();
   }
   lastRenderedHandPhase = hand.phase;
 
@@ -770,8 +801,7 @@ function renderGameState(gameState) {
 
 function clearRoomView() {
   betPanelOpen = false;
-  resultPanelOpen = false;
-  lastHandResultSignature = '';
+  resetResultPanelTiming();
   lastRenderedHandPhase = null;
   document.body.classList.remove('bet-panel-open');
   setEntryMode();

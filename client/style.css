@@ -397,6 +397,14 @@ body.room-active .poker-table {
   color: #bbf7d0;
 }
 
+.table-message.is-ended {
+  color: #fde68a;
+  font-weight: 700;
+  white-space: normal;
+  line-height: 1.35;
+  max-width: 92%;
+}
+
 .community-cards {
   display: flex;
   justify-content: center;
