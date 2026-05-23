@@ -666,12 +666,37 @@ function formatActionLog(log) {
   return `${phase} · ${name} ${label}${amount}${log.note ? `（${log.note}）` : ''}`;
 }
 
+const TABLE_SEAT_SLOTS = [
+  'seat-pos-3', // 0 · 顶中
+  'seat-pos-2', // 1 · 左上
+  'seat-pos-4', // 2 · 右上
+  'seat-pos-6', // 3 · 左中
+  'seat-pos-7', // 4 · 右中
+  'seat-pos-1', // 5 · 左下
+  'seat-pos-5', // 6 · 右下
+  'seat-pos-8', // 7 · 底右（与 pos-0 对称）
+  'seat-pos-0', // 8 · 底中（旋转后固定为「我」）
+];
+
 function tableSeatClass(index, count) {
   if (count <= 1) return 'seat-pos-0';
   if (count === 2) return ['seat-pos-3', 'seat-pos-0'][index] || 'seat-pos-0';
   if (count === 3) return ['seat-pos-2', 'seat-pos-4', 'seat-pos-0'][index] || 'seat-pos-0';
   if (count === 4) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-0'][index] || 'seat-pos-0';
-  return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-5', 'seat-pos-6', 'seat-pos-7', 'seat-pos-8', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 5) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 6) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-1', 'seat-pos-5', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 7) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-6', 'seat-pos-7', 'seat-pos-1', 'seat-pos-0'][index] || 'seat-pos-0';
+  if (count === 8) return ['seat-pos-3', 'seat-pos-2', 'seat-pos-4', 'seat-pos-6', 'seat-pos-7', 'seat-pos-1', 'seat-pos-5', 'seat-pos-0'][index] || 'seat-pos-0';
+  return TABLE_SEAT_SLOTS[index] || 'seat-pos-0';
+}
+
+function applyTableSeatLayout(seatCount) {
+  if (!els.seatList) return;
+  const count = Math.max(0, Number(seatCount) || 0);
+  els.seatList.className = 'seat-list table-seats';
+  if (count >= 7) els.seatList.classList.add('is-dense');
+  if (count >= 9) els.seatList.classList.add('is-full-table');
+  els.seatList.dataset.seatCount = count > 0 ? String(count) : '';
 }
 
 function orderSeatsForTable(seats) {
@@ -1102,13 +1127,15 @@ function renderGameState(gameState) {
     renderCards(els.myCards, []);
     els.seatList.innerHTML = '';
     const tablePlayers = orderSeatsForTable(players);
+    applyTableSeatLayout(tablePlayers.length);
     tablePlayers.forEach((p, index) => {
       const li = document.createElement('li');
       li.className = `seat-item seat-item--lobby ${tableSeatClass(index, tablePlayers.length)}`;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
         <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(p)}</div>
-        <div class="seat-head"><strong>${p.name}</strong>${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
+        <div class="seat-name">${p.name}</div>
+        <div class="seat-status-row">${p.isHost ? '<span class="tag tag-host">房主</span>' : ''}${p.online ? '' : '<span class="tag tag-fold">离线</span>'}</div>
         <div class="seat-meta">${p.online ? '等待开局' : '断线保留中'}</div>
       `;
       els.seatList.appendChild(li);
@@ -1167,6 +1194,7 @@ function renderGameState(gameState) {
   els.seatList.innerHTML = '';
   const playerMeta = buildPlayerMetaMap(gameState.players);
   const tableSeats = orderSeatsForTable(hand.seats);
+  applyTableSeatLayout(tableSeats.length);
   const winnerIds = new Set((hand.winners || []).map((w) => w.id));
   const showdownIds = new Set((hand.showdownHands || []).map((entry) => entry.id));
   tableSeats.forEach((seat, index) => {
@@ -1177,7 +1205,6 @@ function renderGameState(gameState) {
     if (seat.folded) li.classList.add('is-folded');
     if (seat.allIn) li.classList.add('is-allin');
     if (seat.online === false) li.classList.add('is-offline');
-    if (seat.isDealer) li.classList.add('is-dealer');
     if (winnerIds.has(seat.id)) li.classList.add('is-winner');
     if (isShowdown && showdownIds.has(seat.id) && !seat.folded) li.classList.add('is-revealed');
 
@@ -1189,12 +1216,7 @@ function renderGameState(gameState) {
 
     li.innerHTML = `
       <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(seat)}</div>
-      <div class="seat-head">
-        <strong>${seat.name}</strong>
-        ${seat.isDealer ? '<span class="tag">D</span>' : ''}
-        ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
-        ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
-      </div>
+      <div class="seat-name">${seat.name}</div>
       <div class="seat-meta">${seat.chips}</div>
       <div class="seat-status-row">
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}

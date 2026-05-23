@@ -855,8 +855,8 @@ body.room-active .poker-table {
 .table-seats .seat-item {
   position: absolute;
   width: 86px;
-  min-height: 62px;
-  padding: 20px 7px 6px;
+  min-height: 58px;
+  padding: 18px 7px 5px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.34);
@@ -907,8 +907,73 @@ body.room-active .poker-table {
 }
 
 .seat-pos-8 {
-  left: 20%;
-  bottom: 4%;
+  right: 14%;
+  bottom: 9%;
+}
+
+.table-seats.is-dense .seat-pos-1 {
+  left: 2%;
+  bottom: 14%;
+}
+
+.table-seats.is-dense .seat-pos-2 {
+  left: 2%;
+  top: 19%;
+}
+
+.table-seats.is-dense .seat-pos-4 {
+  right: 2%;
+  top: 19%;
+}
+
+.table-seats.is-dense .seat-pos-5 {
+  right: 2%;
+  bottom: 14%;
+}
+
+.table-seats.is-dense .seat-pos-6 {
+  left: 2%;
+  top: 44%;
+}
+
+.table-seats.is-dense .seat-pos-7 {
+  right: 2%;
+  top: 44%;
+}
+
+.table-seats.is-dense .seat-pos-8 {
+  right: 12%;
+  bottom: 7%;
+}
+
+.table-seats.is-full-table .seat-item {
+  width: clamp(68px, 18vw, 78px);
+  min-height: 56px;
+  padding: 18px 6px 5px;
+}
+
+.table-seats.is-full-table .seat-avatar {
+  width: 36px;
+  height: 36px;
+  top: -19px;
+  font-size: 1.15rem;
+}
+
+.table-seats.is-full-table .seat-name {
+  font-size: 0.6875rem;
+}
+
+.table-seats.is-full-table .seat-meta {
+  font-size: 0.625rem;
+}
+
+.table-seats.is-full-table .seat-pos-0 {
+  bottom: 5%;
+}
+
+.table-seats.is-full-table .seat-pos-8 {
+  right: 11%;
+  bottom: 5%;
 }
 
 .bet-stack {
@@ -959,8 +1024,8 @@ body.room-active .poker-table {
 .seat-status-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  min-height: 14px;
+  gap: 2px;
+  min-height: 0;
 }
 
 .seat-item.is-me {
@@ -993,16 +1058,8 @@ body.room-active .poker-table {
 }
 
 .seat-item.is-me::after {
-  content: '我';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 0.625rem;
-  font-weight: 800;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--me-color);
-  color: #0f172a;
+  content: none;
+  display: none;
 }
 
 .seat-item.is-active:not(.is-me) {
@@ -1129,26 +1186,23 @@ body.room-active .poker-table {
   justify-content: center;
 }
 
-.seat-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
-  padding-right: 20px;
-}
-
-.seat-head strong {
+.seat-name {
+  display: block;
+  width: 100%;
+  margin-bottom: 2px;
   font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.15;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 72px;
 }
 
 .seat-meta {
   font-size: 0.6875rem;
   color: #94a3b8;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
+  line-height: 1.1;
 }
 
 .seat-cards {
@@ -1641,9 +1695,8 @@ body.has-dock .lobby-card {
     font-size: 1.15rem;
   }
 
-  .seat-head strong {
+  .seat-name {
     font-size: 0.75rem;
-    max-width: 58px;
   }
 
   .seat-meta,
@@ -1694,8 +1747,13 @@ body.has-dock .lobby-card {
 
   .seat-pos-4,
   .seat-pos-5,
-  .seat-pos-7 {
+  .seat-pos-7,
+  .seat-pos-8 {
     right: 1.5%;
+  }
+
+  .table-seats.is-dense .seat-pos-8 {
+    right: 10%;
   }
 
   .table-center {
