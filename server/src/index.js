@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3001;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const CLIENT_DIR = path.resolve(__dirname, '../../client');
-const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || 'http://localhost:5173,http://localhost:5188')
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || 'http://localhost:3001,http://localhost:5173,http://localhost:5188')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);

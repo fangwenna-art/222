@@ -52,6 +52,8 @@ export class GameEngine {
     this.lastRaiserId = null;
     this.winners = [];
     this.showdownHands = [];
+    this.showdownPending = false;
+    this.showdownDeadlineAt = null;
     this.actionLogs = [];
     this.actionDeadlineAt = null;
     this.actionTimeoutMs = 0;
@@ -105,6 +107,8 @@ export class GameEngine {
     this.lastRaiseAmount = BIG_BLIND;
     this.winners = [];
     this.showdownHands = [];
+    this.showdownPending = false;
+    this.showdownDeadlineAt = null;
     this.actionLogs = [];
     this.actionDeadlineAt = null;
     this.lastRaiserId = null;
@@ -549,15 +553,40 @@ export class GameEngine {
     return winnerDetails;
   }
 
-  _showdown() {
+  _beginShowdown() {
     this.phase = 'showdown';
+    this.showdownPending = true;
+    this.winners = [];
     this._log(null, 'showdown', 0, '摊牌结算');
     this.showdownHands = this._buildShowdownHands();
+    const handSummary = this.showdownHands.map((entry) => `${entry.name} ${entry.handName}`).join(' · ');
+    this.message = handSummary ? `摊牌：${handSummary}` : '摊牌中…';
+    this.activeIndex = -1;
+  }
+
+  _finalizeShowdown() {
+    if (!this.showdownPending) return false;
+
+    this.showdownPending = false;
+    this.showdownDeadlineAt = null;
     this.winners = this._settlePotsByShowdown();
     this.pot = 0;
     this.phase = 'ended';
     this.message = `摊牌：${this.winners.map((w) => `${w.name} +${w.amount}(${w.handName})`).join('、')}`;
     this.activeIndex = -1;
+    return true;
+  }
+
+  isShowdownPending() {
+    return this.showdownPending;
+  }
+
+  finalizeShowdown() {
+    return this._finalizeShowdown();
+  }
+
+  _showdown() {
+    this._beginShowdown();
   }
 
   _availableActionsFor(viewerId) {
@@ -607,6 +636,7 @@ export class GameEngine {
       message: this.message,
       winners: this.winners,
       showdownHands: this.showdownHands,
+      showdownDeadlineAt: this.phase === 'showdown' ? this.showdownDeadlineAt : null,
       canStart: this.canStart(),
       seats: this.order.map((id) => {
         const s = this.seats[id];

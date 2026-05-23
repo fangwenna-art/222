@@ -266,6 +266,18 @@ body.room-active .room-head {
   color: #fde68a;
 }
 
+.phase-tag.is-showdown {
+  background: rgba(120, 53, 15, 0.92);
+  color: #fef3c7;
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.35);
+  animation: showdown-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes showdown-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
 .pot-label {
   font-size: 0.875rem;
   color: #94a3b8;
@@ -375,6 +387,14 @@ body.room-active .poker-table {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.table-message--error {
+  color: #fecaca;
+}
+
+.table-message--success {
+  color: #bbf7d0;
 }
 
 .community-cards {
@@ -703,6 +723,18 @@ body.room-active .poker-table {
   box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.35), 0 8px 18px rgba(0, 0, 0, 0.48);
 }
 
+.seat-item.is-revealed:not(.is-winner) {
+  border-color: rgba(56, 189, 248, 0.72);
+  box-shadow:
+    0 0 0 2px rgba(56, 189, 248, 0.45),
+    0 10px 22px rgba(8, 47, 73, 0.28);
+}
+
+.seat-item.is-revealed:not(.is-winner) .seat-avatar {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35), 0 8px 18px rgba(0, 0, 0, 0.36);
+}
+
 .seat-item.is-offline {
   opacity: 0.58;
   border-style: dashed;
@@ -926,6 +958,19 @@ body.room-active .poker-table {
 .result-panel.is-ended .result-latest {
   color: #fef3c7;
   opacity: 0.72;
+}
+
+.result-panel.is-showdown {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(12, 74, 110, 0.92));
+}
+
+.result-panel.is-showdown .result-kicker {
+  color: #7dd3fc;
+}
+
+.result-panel.is-showdown .result-latest {
+  color: #bae6fd;
 }
 
 .result-summary-list li {

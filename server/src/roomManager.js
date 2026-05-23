@@ -3,6 +3,7 @@ import { GameEngine } from './gameEngine.js';
 
 const OFFLINE_AUTO_FOLD_MS = Number(process.env.OFFLINE_AUTO_FOLD_MS || 30000);
 const ACTION_TIMEOUT_MS = Number(process.env.ACTION_TIMEOUT_MS || 30000);
+const SHOWDOWN_PAUSE_MS = Number(process.env.SHOWDOWN_PAUSE_MS || 1800);
 const MAX_PLAYERS_PER_ROOM = Number(process.env.MAX_PLAYERS_PER_ROOM || 9);
 
 function generateRoomId() {
@@ -31,15 +32,17 @@ function createRoom(roomId) {
     hostPlayerId: null,
     actionTimer: null,
     actionDeadlineAt: null,
+    showdownTimer: null,
   };
 }
 
 export class RoomManager {
-  constructor({ onRoomChanged, actionTimeoutMs = ACTION_TIMEOUT_MS } = {}) {
+  constructor({ onRoomChanged, actionTimeoutMs = ACTION_TIMEOUT_MS, showdownPauseMs = SHOWDOWN_PAUSE_MS } = {}) {
     this.rooms = new Map();
     this.tokenIndex = new Map();
     this.onRoomChanged = onRoomChanged || (() => {});
     this.actionTimeoutMs = actionTimeoutMs;
+    this.showdownPauseMs = showdownPauseMs;
   }
 
   _scheduleActionTimer(room) {
@@ -64,10 +67,65 @@ export class RoomManager {
       } else {
         latestEngine.forceFold(activePlayerId, '行动超时');
       }
-      this.syncChipsFromEngine(latestRoom);
-      this._scheduleActionTimer(latestRoom);
+      this._afterEngineMutation(latestRoom);
       this.onRoomChanged(latestRoom);
     }, this.actionTimeoutMs);
+  }
+
+  clearShowdownTimer(room) {
+    if (room?.showdownTimer) {
+      clearTimeout(room.showdownTimer);
+      room.showdownTimer = null;
+    }
+    if (room?.engine) room.engine.showdownDeadlineAt = null;
+  }
+
+  _scheduleShowdownTimer(room, delayMs = this.showdownPauseMs) {
+    this.clearShowdownTimer(room);
+    const engine = room?.engine;
+    if (!engine?.isShowdownPending()) return;
+
+    const pauseMs = Math.max(0, delayMs);
+    engine.showdownDeadlineAt = Date.now() + pauseMs;
+    room.showdownTimer = setTimeout(() => {
+      const latestRoom = this.rooms.get(room.id);
+      const latestEngine = latestRoom?.engine;
+      if (!latestRoom || !latestEngine?.isShowdownPending()) return;
+
+      latestEngine.finalizeShowdown();
+      this.syncChipsFromEngine(latestRoom);
+      this.onRoomChanged(latestRoom);
+    }, pauseMs);
+  }
+
+  _recoverShowdown(room) {
+    const engine = room?.engine;
+    if (!engine?.isShowdownPending()) return false;
+
+    const now = Date.now();
+    const deadline = engine.showdownDeadlineAt;
+    if (deadline && now >= deadline) {
+      this.clearShowdownTimer(room);
+      engine.finalizeShowdown();
+      this.syncChipsFromEngine(room);
+      return true;
+    }
+
+    if (!room.showdownTimer) {
+      const remainMs = deadline && deadline > now ? deadline - now : this.showdownPauseMs;
+      this._scheduleShowdownTimer(room, remainMs);
+    }
+
+    return false;
+  }
+
+  _prepareNextHand(room) {
+    this._recoverShowdown(room);
+    if (room.engine?.isShowdownPending()) {
+      this.clearShowdownTimer(room);
+      room.engine.finalizeShowdown();
+      this.syncChipsFromEngine(room);
+    }
   }
 
   clearActionTimer(room) {
@@ -77,6 +135,16 @@ export class RoomManager {
     }
     if (room) room.actionDeadlineAt = null;
     if (room?.engine) room.engine.actionDeadlineAt = null;
+  }
+
+  _afterEngineMutation(room) {
+    this.syncChipsFromEngine(room);
+    if (room.engine?.isShowdownPending()) {
+      this.clearActionTimer(room);
+      this._scheduleShowdownTimer(room);
+      return;
+    }
+    this._scheduleActionTimer(room);
   }
 
   createRoom(playerName) {
@@ -147,9 +215,16 @@ export class RoomManager {
     if (room.hostPlayerId && requesterPlayerId && requesterPlayerId !== room.hostPlayerId) {
       return { ok: false, error: '只有房主可以开始新一局' };
     }
-    if (room.engine && !room.engine.canStart()) return { ok: false, error: '当前局未结束' };
+
+    this._prepareNextHand(room);
+    if (room.engine && !room.engine.canStart()) {
+      return { ok: false, error: '当前局未结束' };
+    }
 
     const entries = [...room.players.entries()].filter(([, player]) => player.online && (player.chips ?? 1) > 0);
+    if (entries.length < 2) {
+      return { ok: false, error: '至少需要 2 名在线玩家' };
+    }
     const engine = new GameEngine(roomId, entries, {
       startingChipsByPlayerId: Object.fromEntries(entries.map(([id, player]) => [id, player.chips]).filter(([, chips]) => chips != null)),
       dealerPlayerId: room.dealerSeatId,
@@ -160,16 +235,15 @@ export class RoomManager {
 
     room.engine = engine;
     room.dealerSeatId = engine.getDealerId();
-    this.syncChipsFromEngine(room);
-    this._scheduleActionTimer(room);
+    this.clearShowdownTimer(room);
+    this._afterEngineMutation(room);
     return { ok: true, room };
   }
 
   applyAction(room, player, action, amount) {
     if (!room?.engine) return { ok: false, error: '牌局未开始' };
     const result = room.engine.applyAction(player.id, action, amount);
-    this.syncChipsFromEngine(room);
-    this._scheduleActionTimer(room);
+    this._afterEngineMutation(room);
     return result;
   }
 
@@ -189,8 +263,7 @@ export class RoomManager {
         const latestPlayer = latestRoom?.players.get(playerId);
         if (!latestRoom || !latestPlayer || latestPlayer.online) return;
         latestRoom.engine?.forceFold(playerId, '离线超时');
-        this.syncChipsFromEngine(latestRoom);
-        this._scheduleActionTimer(latestRoom);
+        this._afterEngineMutation(latestRoom);
         this.onRoomChanged(latestRoom);
       }, OFFLINE_AUTO_FOLD_MS);
     }
@@ -204,8 +277,7 @@ export class RoomManager {
 
     if (room.engine && !room.engine.canStart()) {
       room.engine.forceFold(player.id, '离开房间');
-      this.syncChipsFromEngine(room);
-      this._scheduleActionTimer(room);
+      this._afterEngineMutation(room);
     }
 
     this.clearOfflineFoldTimer(player);
@@ -215,6 +287,7 @@ export class RoomManager {
 
     if (room.players.size === 0) {
       this.clearActionTimer(room);
+      this.clearShowdownTimer(room);
       this.rooms.delete(roomId);
       return { ok: true, roomRemoved: true, room, player };
     }
@@ -238,6 +311,7 @@ export class RoomManager {
   }
 
   buildGameState(room, viewerPlayerId) {
+    this._recoverShowdown(room);
     if (room.engine) {
       room.engine.onlineStatus = Object.fromEntries(
         Array.from(room.players.values()).map((p) => [p.id, p.online]),
@@ -268,6 +342,7 @@ export class RoomManager {
         this.tokenIndex.delete(player.token);
       }
       this.clearActionTimer(room);
+      this.clearShowdownTimer(room);
       this.rooms.delete(roomId);
       return true;
     }

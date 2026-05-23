@@ -84,6 +84,80 @@ manager.clearActionTimer(room);
   assert(timeoutRoom.engine.seats[firstActorId].folded || timeoutRoom.engine.seats[firstActorId].acted, 'timeout should auto act for active player');
   assert(timeoutRoom.engine.actionLogs.some((log) => log.note === '行动超时' || log.action === 'check'), 'timeout should be logged');
   timeoutManager.clearActionTimer(timeoutRoom);
+  timeoutManager.clearShowdownTimer(timeoutRoom);
+}
+
+{
+  let phaseAfterAction = null;
+  let phaseAfterFinalize = null;
+  const showdownManager = new RoomManager({
+    actionTimeoutMs: 1000000,
+    showdownPauseMs: 40,
+    onRoomChanged: (updatedRoom) => {
+      phaseAfterFinalize = updatedRoom.engine?.phase || null;
+    },
+  });
+  const { room: showdownRoom } = showdownManager.createRoom('A');
+  const joined = showdownManager.joinRoom(showdownRoom.id, 'B');
+  assert(joined.ok, 'showdown room should accept B');
+  const started = showdownManager.startHand(showdownRoom.id);
+  assert(started.ok, 'showdown pause hand should start');
+  showdownRoom.engine.applyAction(showdownRoom.engine.order[showdownRoom.engine.activeIndex], 'allin');
+  showdownRoom.engine.applyAction(showdownRoom.engine.order[showdownRoom.engine.activeIndex], 'call');
+  showdownManager._afterEngineMutation(showdownRoom);
+  phaseAfterAction = showdownRoom.engine.phase;
+  assert(phaseAfterAction === 'showdown', `room flow should pause at showdown, got ${phaseAfterAction}`);
+  assert(showdownRoom.engine.showdownDeadlineAt, 'showdown deadline should be scheduled');
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert(phaseAfterFinalize === 'ended', `showdown timer should finalize to ended, got ${phaseAfterFinalize}`);
+  showdownManager.clearShowdownTimer(showdownRoom);
+}
+
+{
+  const recoveryManager = new RoomManager({ actionTimeoutMs: 1000000, showdownPauseMs: 1000000 });
+  const { room: recoveryRoom } = recoveryManager.createRoom('A');
+  const joined = recoveryManager.joinRoom(recoveryRoom.id, 'B');
+  assert(joined.ok, 'recovery room should accept B');
+  recoveryManager.startHand(recoveryRoom.id);
+  let guard = 0;
+  while (
+    recoveryRoom.engine.phase !== 'showdown'
+    && recoveryRoom.engine.phase !== 'ended'
+    && guard++ < 30
+  ) {
+    const actorId = recoveryRoom.engine.order[recoveryRoom.engine.activeIndex];
+    const seat = recoveryRoom.engine.seats[actorId];
+    const toCall = Math.max(0, recoveryRoom.engine.currentBet - seat.bet);
+    recoveryManager.applyAction(recoveryRoom, { id: actorId }, toCall === 0 ? 'check' : 'call');
+  }
+  assert(recoveryRoom.engine.phase === 'showdown', 'recovery setup should reach showdown');
+  recoveryRoom.engine.showdownDeadlineAt = Date.now() - 1;
+  assert(recoveryManager.buildGameState(recoveryRoom, 'A').hand.phase === 'ended', 'buildGameState should finalize overdue showdown');
+  recoveryManager.clearShowdownTimer(recoveryRoom);
+}
+
+{
+  const startManager = new RoomManager({ actionTimeoutMs: 1000000, showdownPauseMs: 1000000 });
+  const { room: startRoom, player: host } = startManager.createRoom('A');
+  const joined = startManager.joinRoom(startRoom.id, 'B');
+  assert(joined.ok, 'start recovery room should accept B');
+  startManager.startHand(startRoom.id);
+  let guard = 0;
+  while (
+    startRoom.engine.phase !== 'showdown'
+    && startRoom.engine.phase !== 'ended'
+    && guard++ < 30
+  ) {
+    const actorId = startRoom.engine.order[startRoom.engine.activeIndex];
+    const seat = startRoom.engine.seats[actorId];
+    const toCall = Math.max(0, startRoom.engine.currentBet - seat.bet);
+    startManager.applyAction(startRoom, { id: actorId }, toCall === 0 ? 'check' : 'call');
+  }
+  assert(startRoom.engine.phase === 'showdown', `hand should pause at showdown before forced restart, got ${startRoom.engine.phase}`);
+  const restarted = startManager.startHand(startRoom.id, host.id);
+  assert(restarted.ok, 'startHand should finalize pending showdown and start next hand');
+  assert(startRoom.engine.phase === 'preflop', `new hand should begin at preflop, got ${startRoom.engine.phase}`);
+  startManager.clearShowdownTimer(startRoom);
 }
 
 console.log('全部房间控制测试通过');

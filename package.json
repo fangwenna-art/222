@@ -6,6 +6,7 @@
   "scripts": {
     "start": "npm --prefix server start",
     "dev": "npm --prefix server run dev",
+    "local": "bash dev-local.sh",
     "test:evaluator": "node server/src/handEvaluator.test.js",
     "test:settlement": "node server/src/gameEngine.settlement.test.js",
     "test": "npm run test:evaluator && npm run test:settlement",

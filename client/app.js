@@ -3,13 +3,21 @@ function resolveServerUrl() {
   if (params.has('server')) return params.get('server');
 
   const { protocol, hostname, port } = window.location;
-  if (protocol === 'https:' || port === '3010') {
+
+  // 分离静态页（5188/5173）+ 独立 socket 服务（3010）
+  if (port === '5173' || port === '5188') {
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3010';
+    }
+    return `${protocol}//${hostname}:3010`;
+  }
+
+  // 一体服务：npm start（3001/3010）或线上 HTTPS，socket 与页面同源
+  if (protocol === 'https:' || protocol === 'http:') {
     return window.location.origin;
   }
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:3010';
-  }
-  return `${protocol}//${hostname}:3010`;
+
+  return 'http://localhost:3001';
 }
 
 const SERVER_URL = resolveServerUrl();
@@ -97,6 +105,7 @@ let resultPanelOpen = false;
 let lastHandResultSignature = '';
 let lastRenderedHandPhase = null;
 let dockResizeObserver = null;
+let startHandPending = false;
 
 function updateLayoutMetrics() {
   const dockHeight = els.bottomDock.hidden ? 0 : Math.ceil(els.bottomDock.getBoundingClientRect().height);
@@ -164,6 +173,18 @@ function setMessage(text, type = '') {
   els.message.className = `message${type ? ` message--${type}` : ''}`;
 }
 
+function countOnlinePlayers(players) {
+  return (players || []).filter((player) => player.online !== false).length;
+}
+
+function showRoomNotice(text, type = '') {
+  if (els.tableMessage) {
+    els.tableMessage.textContent = text;
+    els.tableMessage.className = `table-message${type ? ` table-message--${type}` : ''}`;
+  }
+  if (els.gameMessage) els.gameMessage.textContent = text;
+}
+
 const AVATAR_EMOJIS = ['😎', '🤠', '🦊', '🐼', '🐯', '🐸', '🐵', '👻', '🤖', '🦁', '🐨', '🐰'];
 
 function avatarForPlayer(player) {
@@ -212,6 +233,9 @@ function winnerCardsHtml(cards) {
 
 function shortTableMessage(hand) {
   if (!hand) return '等待玩家入座';
+  if (hand.phase === 'showdown') {
+    return hand.message || '摊牌中…';
+  }
   if (hand.phase === 'ended') {
     const winners = hand.winners || [];
     if (!winners.length) return '本局结束';
@@ -247,7 +271,33 @@ function buildWinnerRow(winner, seat, className, includeCards = false) {
 }
 
 function isHandInProgress(hand) {
-  return Boolean(hand && hand.phase !== 'waiting' && hand.phase !== 'ended');
+  return Boolean(hand && hand.phase !== 'waiting' && hand.phase !== 'ended' && hand.phase !== 'showdown');
+}
+
+function renderShowdownRevealList(hand) {
+  els.resultSummaryList.innerHTML = '';
+  const revealEntries = (hand.showdownHands || []).filter((entry) => entry.id !== myPlayerId);
+  if (!revealEntries.length) return '';
+
+  const seatById = new Map((hand.seats || []).map((seat) => [seat.id, seat]));
+  const header = document.createElement('li');
+  header.className = 'winner-reveal-kicker';
+  header.textContent = '亮牌';
+  els.resultSummaryList.appendChild(header);
+
+  revealEntries.forEach((entry) => {
+    const seat = seatById.get(entry.id);
+    const li = document.createElement('li');
+    li.className = 'winner-reveal-item';
+    li.innerHTML = `
+      <strong>${entry.name}</strong>
+      <span class="winner-reveal-hand">${entry.handName || '—'}</span>
+      ${winnerCardsHtml(seat?.holeCards)}
+    `;
+    els.resultSummaryList.appendChild(li);
+  });
+
+  return '摊牌中';
 }
 
 function renderResultSummary(hand) {
@@ -295,11 +345,30 @@ function renderResultSummary(hand) {
 }
 
 function renderResultPanel(hand) {
+  const isShowdown = hand?.phase === 'showdown';
   const isEnded = hand?.phase === 'ended';
+
+  if (isShowdown) {
+    const hasReveal = (hand.showdownHands?.length ?? 0) > 0;
+    els.resultPanel.hidden = !hasReveal;
+    els.resultPanel.classList.remove('is-ended');
+    els.resultPanel.classList.add('is-showdown');
+    els.resultSummaryList.hidden = !hasReveal;
+    els.resultLogKicker.hidden = true;
+    els.resultLogList.innerHTML = '';
+    els.resultLatest.textContent = '亮牌中…';
+    els.resultKicker.textContent = renderShowdownRevealList(hand) || '摊牌中';
+    resultPanelOpen = true;
+    els.resultPanelBody.hidden = false;
+    els.btnToggleResult.classList.add('is-open');
+    return;
+  }
+
+  els.resultPanel.classList.remove('is-showdown');
 
   if (!isEnded) {
     els.resultPanel.hidden = true;
-    els.resultPanel.classList.remove('is-ended');
+    els.resultPanel.classList.remove('is-ended', 'is-showdown');
     resultPanelOpen = false;
     els.resultPanelBody.hidden = true;
     els.btnToggleResult.classList.remove('is-open');
@@ -386,8 +455,28 @@ function clearActionTimer() {
   els.actionTimer.hidden = true;
 }
 
+function renderShowdownTimer(hand) {
+  clearActionTimer();
+  if (hand?.phase !== 'showdown' || !hand.showdownDeadlineAt) return;
+
+  const update = () => {
+    const remainMs = Math.max(0, hand.showdownDeadlineAt - Date.now());
+    const remainSec = Math.ceil(remainMs / 1000);
+    els.actionTimer.hidden = false;
+    els.actionTimer.textContent = `摊牌中 · ${remainSec}s 后结算`;
+    els.actionTimer.classList.toggle('is-warning', remainSec <= 1);
+    if (remainMs <= 0) window.clearInterval(actionTimerInterval);
+  };
+  update();
+  actionTimerInterval = window.setInterval(update, 250);
+}
+
 function renderActionTimer(hand) {
   clearActionTimer();
+  if (hand?.phase === 'showdown') {
+    renderShowdownTimer(hand);
+    return;
+  }
   if (!hand?.actionDeadlineAt || !hand.activePlayerId) return;
 
   const activeSeat = hand.seats.find((s) => s.id === hand.activePlayerId);
@@ -452,6 +541,7 @@ function orderSeatsForTable(seats) {
 /** 仅渲染服务端 gameState */
 function renderGameState(gameState) {
   if (!gameState) return;
+  window.__lastGameState = gameState;
 
   setScreen('room');
   setDockVisible(true);
@@ -495,21 +585,35 @@ function renderGameState(gameState) {
     lastHandResultSignature = '';
     lastRenderedHandPhase = null;
     clearActionTimer();
-    els.btnStartHand.hidden = false;
+    const onlineCount = countOnlinePlayers(players);
     const isHost = gameState.hostPlayerId === myPlayerId;
-    els.btnStartHand.disabled = players.length < 2 || !isHost;
-    els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
+    els.btnStartHand.hidden = false;
+    els.btnStartHand.disabled = startHandPending || onlineCount < 2 || !isHost;
+    els.btnStartHand.textContent = startHandPending
+      ? '正在开始…'
+      : isHost
+        ? '开始新一局'
+        : '等待房主开始';
     els.actionBar.hidden = true;
+    els.actionHint.hidden = false;
+    els.actionHint.textContent = !isHost
+      ? '等待房主开始新一局'
+      : onlineCount < 2
+        ? '至少 2 人在线才能开始'
+        : '房间已就绪，可以开始';
     els.allInConfirm.hidden = true;
     syncDockVisibility();
     return;
   }
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
+  els.gamePhase.classList.toggle('is-showdown', hand.phase === 'showdown');
   const isEnded = hand.phase === 'ended';
+  const isShowdown = hand.phase === 'showdown';
   els.tablePotLabel.textContent = isEnded ? '本局结束' : '底池';
   els.gamePot.textContent = isEnded ? '' : String(hand.pot);
   els.gameMessage.textContent = shortTableMessage(hand);
   els.tableMessage.textContent = shortTableMessage(hand);
+  els.tableMessage.className = 'table-message';
   renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
@@ -524,6 +628,7 @@ function renderGameState(gameState) {
   els.seatList.innerHTML = '';
   const tableSeats = orderSeatsForTable(hand.seats);
   const winnerIds = new Set((hand.winners || []).map((w) => w.id));
+  const showdownIds = new Set((hand.showdownHands || []).map((entry) => entry.id));
   tableSeats.forEach((seat, index) => {
     const li = document.createElement('li');
     li.className = `seat-item ${tableSeatClass(index, tableSeats.length)}`;
@@ -534,6 +639,7 @@ function renderGameState(gameState) {
     if (seat.online === false) li.classList.add('is-offline');
     if (seat.isDealer) li.classList.add('is-dealer');
     if (winnerIds.has(seat.id)) li.classList.add('is-winner');
+    if (isShowdown && showdownIds.has(seat.id) && !seat.folded) li.classList.add('is-revealed');
 
     li.innerHTML = `
       <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(seat)}</div>
@@ -559,16 +665,24 @@ function renderGameState(gameState) {
     resultPanelOpen = false;
     lastHandResultSignature = '';
   }
+  if (lastRenderedHandPhase === 'showdown' && hand.phase === 'ended') {
+    resultPanelOpen = true;
+  }
   lastRenderedHandPhase = hand.phase;
 
   renderResultPanel(hand);
 
   const inHand = isHandInProgress(hand);
-  const canStartNew = hand.canStart && players.length >= 2 && !inHand;
+  const onlineCount = countOnlinePlayers(players);
+  const canStartNew = hand.canStart && onlineCount >= 2 && !inHand;
   const isHost = gameState.hostPlayerId === myPlayerId;
   els.btnStartHand.hidden = !canStartNew;
-  els.btnStartHand.disabled = !canStartNew || !isHost;
-  els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
+  els.btnStartHand.disabled = startHandPending || !canStartNew || !isHost;
+  els.btnStartHand.textContent = startHandPending
+    ? '正在开始…'
+    : isHost
+      ? '开始新一局'
+      : '等待房主开始';
 
   const actions = hand.availableActions || {};
   const myTurn = Boolean(actions.isActive);
@@ -630,8 +744,14 @@ function renderGameState(gameState) {
     els.actionHint.textContent = activeSeat
       ? `等待 ${activeSeat.name} 行动`
       : '等待其他玩家';
+  } else if (canStartNew) {
+    els.actionHint.textContent = !isHost
+      ? '等待房主开始新一局'
+      : onlineCount < 2
+        ? '至少 2 人在线才能开始'
+        : '本局已结束，可开始新一局';
   }
-  els.actionHint.hidden = !inHand;
+  els.actionHint.hidden = !(inHand || canStartNew);
   syncDockVisibility();
 }
 
@@ -743,13 +863,24 @@ els.btnJoin.addEventListener('click', () => {
 });
 
 els.btnStartHand.addEventListener('click', () => {
+  if (els.btnStartHand.disabled || startHandPending) return;
+  if (!socket.connected) {
+    showRoomNotice('连接已断开，请等待重连', 'error');
+    return;
+  }
+
+  startHandPending = true;
+  els.btnStartHand.disabled = true;
+  els.btnStartHand.textContent = '正在开始…';
   socket.emit('game:start', {}, (res) => {
+    startHandPending = false;
     if (!res?.ok) {
-      setMessage(res?.error || '无法开始', 'error');
+      showRoomNotice(res?.error || '无法开始', 'error');
+      if (window.__lastGameState) renderGameState(window.__lastGameState);
       return;
     }
     renderGameState(res.gameState);
-    setMessage('新一局已开始', 'success');
+    showRoomNotice('新一局已开始', 'success');
   });
 });
 

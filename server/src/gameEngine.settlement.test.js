@@ -59,6 +59,15 @@ function makeEngine() {
   engine.seats.B.holeCards = [card(14, 'h'), card(3, 'c')];
   engine.seats.C.holeCards = [card(12, 's'), card(4, 'd')];
   engine._showdown();
+  assert(engine.phase === 'showdown', `showdown should pause before settlement, got ${engine.phase}`);
+  assert(engine.isShowdownPending(), 'showdown should remain pending before finalize');
+  assert(engine.pot === 300, `pot should remain visible during showdown pause, got ${engine.pot}`);
+  assert(!engine.winners.length, 'winners should stay empty during showdown pause');
+  assert(!engine.actionLogs.some((log) => log.action === 'settle'), 'settle logs should wait for finalize');
+  const pausedState = engine.toPublicState('C');
+  assert(pausedState.showdownHands?.length === 3, 'showdown pause should expose hand names');
+  assert(pausedState.seats.find((seat) => seat.id === 'A')?.holeCards?.includes('A♠'), 'showdown pause should reveal hole cards');
+  engine.finalizeShowdown();
   assert(engine.seats.A.chips === 1150, `A should split main pot, got ${engine.seats.A.chips}`);
   assert(engine.seats.B.chips === 1150, `B should split main pot, got ${engine.seats.B.chips}`);
   assert(engine.seats.C.chips === 1000, `C should win nothing, got ${engine.seats.C.chips}`);
@@ -91,6 +100,7 @@ function makeEngine() {
   engine.seats.B.holeCards = [card(12, 'h'), card(3, 'c')];
   engine.seats.C.holeCards = [card(10, 's'), card(4, 'd')];
   engine._showdown();
+  engine.finalizeShowdown();
   assert(engine.seats.A.chips === 1300, `A should win main pot 300, got ${engine.seats.A.chips}`);
   assert(engine.seats.B.chips === 1200, `B should win side pot 200, got ${engine.seats.B.chips}`);
   assert(engine.seats.C.chips === 1100, `C should receive uncontested side pot 100, got ${engine.seats.C.chips}`);
@@ -121,10 +131,13 @@ function makeEngine() {
   assert(result.ok, 'all-in hand should start');
   engine.applyAction('A', 'allin');
   engine.applyAction('B', 'call');
-  assert(engine.phase === 'ended', `all-in call should run out to ended, got ${engine.phase}`);
+  assert(engine.phase === 'showdown', `all-in call should pause at showdown, got ${engine.phase}`);
   assert(engine.community.length === 5, `runout should deal 5 community cards, got ${engine.community.length}`);
   assert(engine.actionLogs.some((log) => log.action === 'dealFlop'), 'action logs should include dealFlop');
   assert(engine.actionLogs.some((log) => log.action === 'showdown'), 'action logs should include showdown');
+  assert(!engine.actionLogs.some((log) => log.action === 'settle'), 'settle should wait for finalize');
+  engine.finalizeShowdown();
+  assert(engine.phase === 'ended', `finalize should move to ended, got ${engine.phase}`);
 }
 
 {
