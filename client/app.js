@@ -405,7 +405,7 @@ function renderResultPanel(hand) {
   els.resultLogList.innerHTML = '';
   logs.forEach((log) => {
     const li = document.createElement('li');
-    if (log.action === 'settle') li.classList.add('is-settle');
+    if (log.action === 'settle' || log.action === 'win') li.classList.add('is-settle');
     li.textContent = formatActionLog(log);
     els.resultLogList.appendChild(li);
   });
@@ -492,10 +492,23 @@ function renderActionTimer(hand) {
   actionTimerInterval = window.setInterval(update, 250);
 }
 
+function formatSettlementLog(log) {
+  if (log.action === 'settle') {
+    return log.note || '结算';
+  }
+  if (log.action === 'win') {
+    const name = log.playerName || '系统';
+    const amount = log.amount || 0;
+    if (log.note) return `主池 ${amount} · ${name} +${amount}(${log.note})`;
+    return `${name} 获胜 ${amount}`;
+  }
+  return log.note || '结算';
+}
+
 function formatActionLog(log) {
   const phase = PHASE_LABEL[log.phase] || log.phase;
-  if (log.action === 'settle') {
-    return `${phase} · ${log.note || '结算'}`;
+  if (log.action === 'settle' || log.action === 'win') {
+    return `${phase} · ${formatSettlementLog(log)}`;
   }
   if (log.action === 'showdown') {
     return `${phase} · 开始摊牌`;

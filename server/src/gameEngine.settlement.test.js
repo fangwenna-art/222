@@ -211,4 +211,24 @@ function makeEngine() {
   assert(!state.availableActions.canBet, 'big blind should not bet while preflop currentBet exists');
 }
 
+{
+  const engine = new GameEngine('FOLDWIN', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+  ]);
+  engine.startHand();
+  const raiserId = engine.order[engine.activeIndex];
+  const folderId = engine.order[(engine.activeIndex + 1) % engine.order.length];
+  engine.applyAction(raiserId, 'raise', 40);
+  engine.applyAction(folderId, 'fold');
+  assert(engine.phase === 'ended', `fold win should end hand, got ${engine.phase}`);
+  assert(!engine.actionLogs.some((log) => log.action === 'win'), 'fold win should not emit legacy win logs');
+  const settleLog = engine.actionLogs.find((log) => log.action === 'settle');
+  assert(settleLog, 'fold win should emit settle log');
+  assert(settleLog.note.startsWith('主池'), `fold win settle note should label main pot, got ${settleLog.note}`);
+  assert(settleLog.note.includes(`${engine.names[raiserId]} +`), `fold win settle note should include winner payout, got ${settleLog.note}`);
+  assert(settleLog.note.includes('(对手弃牌)'), `fold win settle note should include reason, got ${settleLog.note}`);
+  assert(engine.winners[0]?.potAmount === settleLog.amount, 'winner detail should include pot amount');
+}
+
 console.log('全部结算测试通过');

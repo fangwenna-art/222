@@ -460,13 +460,21 @@ export class GameEngine {
 
   _awardPot(winnerId, reason) {
     const seat = this.seats[winnerId];
-    seat.chips += this.pot;
+    const payout = this.pot;
+    const winnerName = this.names[winnerId];
+    seat.chips += payout;
     this.showdownHands = [];
-    this.winners = [{ id: winnerId, name: this.names[winnerId], amount: this.pot, reason }];
-    this._log(winnerId, 'win', this.pot, reason);
+    this.winners = [{
+      id: winnerId,
+      name: winnerName,
+      amount: payout,
+      reason,
+      potAmount: payout,
+    }];
+    this._log(null, 'settle', payout, `主池 ${payout} · ${winnerName} +${payout}(${reason})`);
     this.pot = 0;
     this.phase = 'ended';
-    this.message = `${this.names[winnerId]} 赢得 ${this.winners[0].amount}（${reason}）`;
+    this.message = `${winnerName} 赢得 ${payout}（${reason}）`;
     this.activeIndex = -1;
   }
 
