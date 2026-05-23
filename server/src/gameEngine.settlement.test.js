@@ -62,6 +62,11 @@ function makeEngine() {
   assert(engine.seats.A.chips === 1150, `A should split main pot, got ${engine.seats.A.chips}`);
   assert(engine.seats.B.chips === 1150, `B should split main pot, got ${engine.seats.B.chips}`);
   assert(engine.seats.C.chips === 1000, `C should win nothing, got ${engine.seats.C.chips}`);
+  assert(engine.winners.every((w) => w.reason === '主池摊牌'), 'equal-bet showdown should label main pot only');
+  const mainPotLog = engine.actionLogs.find((log) => log.action === 'settle' && log.note.startsWith('主池'));
+  assert(mainPotLog, 'showdown should log main pot settlement');
+  assert(mainPotLog.note.includes('A +150'), `main pot log should include winner payout, got ${mainPotLog.note}`);
+  assert(mainPotLog.note.includes('平分'), 'split main pot log should note tie');
   const publicState = engine.toPublicState('C');
   const revealedA = publicState.seats.find((seat) => seat.id === 'A')?.holeCards;
   const revealedB = publicState.seats.find((seat) => seat.id === 'B')?.holeCards;
@@ -86,6 +91,15 @@ function makeEngine() {
   assert(engine.seats.A.chips === 1300, `A should win main pot 300, got ${engine.seats.A.chips}`);
   assert(engine.seats.B.chips === 1200, `B should win side pot 200, got ${engine.seats.B.chips}`);
   assert(engine.seats.C.chips === 1100, `C should receive uncontested side pot 100, got ${engine.seats.C.chips}`);
+  const settleLogs = engine.actionLogs.filter((log) => log.action === 'settle');
+  assert(settleLogs.length === 3, `side-pot showdown should log 3 pot settlements, got ${settleLogs.length}`);
+  assert(settleLogs.some((log) => log.note.startsWith('主池 300')), 'should log main pot amount');
+  assert(settleLogs.some((log) => log.note.startsWith('边池1 200')), 'should log first side pot');
+  assert(settleLogs.some((log) => log.note.startsWith('边池2 100')), 'should log second side pot');
+  assert(engine.winners.some((w) => w.reason === '主池摊牌'), 'should include main pot winner detail');
+  assert(engine.winners.some((w) => w.reason === '边池摊牌'), 'should include side pot winner details');
+  const publicState = engine.toPublicState('A');
+  assert(publicState.actionLogs.some((log) => log.action === 'settle'), 'public state should expose settle logs');
 }
 
 {

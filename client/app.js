@@ -92,6 +92,7 @@ let myPlayerId = currentSession?.playerId || null;
 let currentPlayerName = currentSession?.playerName || window.localStorage.getItem(PROFILE_KEY) || '';
 let betPanelOpen = false;
 let actionLogOpen = false;
+let lastHandResultSignature = '';
 let dockResizeObserver = null;
 
 function updateLayoutMetrics() {
@@ -107,6 +108,11 @@ function loadSession() {
   } catch {
     return null;
   }
+}
+
+function handResultSignature(hand) {
+  if (hand?.phase !== 'ended') return '';
+  return `${hand.message}|${(hand.winners || []).map((winner) => `${winner.id}:${winner.amount}:${winner.reason}`).join(',')}`;
 }
 
 function setScreen(screen) {
@@ -196,20 +202,97 @@ function cardHtml(label) {
   return `<span class="${classes.join(' ')}">${label || '🂠'}</span>`;
 }
 
-function seatCardsHtml(cards, shouldReveal = false) {
-  if (!shouldReveal || !cards?.length) return '';
-  return `<div class="seat-cards">${cards.map(cardHtml).join('')}</div>`;
+function winnerCardsHtml(cards) {
+  if (!cards?.length || cards.every((c) => c === '🂠')) return '';
+  return `<div class="winner-cards">${cards.map(cardHtml).join('')}</div>`;
 }
 
 function shortTableMessage(hand) {
   if (!hand) return '等待玩家入座';
   if (hand.phase === 'ended') {
-    const winner = hand.winners?.[0];
-    return winner ? `${winner.name} 获胜` : '本局结束';
+    const winners = hand.winners || [];
+    if (!winners.length) return '本局结束';
+    if (winners.length === 1) return `${winners[0].name} 获胜`;
+    const uniqueNames = [...new Set(winners.map((w) => w.name))];
+    if (uniqueNames.length === 1) return `${uniqueNames[0]} 获胜`;
+    return `本局结束 · ${uniqueNames.length} 位赢家`;
   }
   const activeSeat = hand.seats?.find((seat) => seat.id === hand.activePlayerId);
   if (activeSeat) return `轮到 ${activeSeat.name}`;
   return PHASE_LABEL[hand.phase] || hand.message || '—';
+}
+
+function formatWinnerDetail(winner) {
+  const parts = [];
+  if (winner.handName) parts.push(winner.handName);
+  if (winner.reason) parts.push(winner.reason);
+  if (winner.potAmount && winner.potAmount !== winner.amount) parts.push(`奖池 ${winner.potAmount}`);
+  if (winner.split) parts.push('平分');
+  return parts.join(' · ') || '获胜';
+}
+
+function handNameForPlayer(winners, playerId) {
+  return winners.find((w) => w.id === playerId)?.handName || '';
+}
+
+function buildWinnerRow(winner, seat, className, includeCards = false) {
+  const li = document.createElement('li');
+  li.className = className;
+  li.innerHTML = `
+    <strong>${winner.name}</strong>
+    <span>+${winner.amount}</span>
+    <small>${formatWinnerDetail(winner)}</small>
+    ${includeCards ? winnerCardsHtml(seat?.holeCards) : ''}
+  `;
+  return li;
+}
+
+function renderWinnerSummary(hand) {
+  const winners = hand?.winners;
+  els.winnersBox.hidden = !winners?.length;
+  els.winnersList.innerHTML = '';
+  if (!winners?.length) return;
+
+  const seatById = new Map((hand.seats || []).map((seat) => [seat.id, seat]));
+  const kicker = winners.length > 1 ? `本局结果 · ${winners.length} 项结算` : '本局结果';
+  const isShowdown = winners.some((winner) => winner.handName);
+
+  if (winners.length === 1) {
+    els.winnersList.appendChild(
+      buildWinnerRow(winners[0], seatById.get(winners[0].id), 'winner-summary-item', !isShowdown),
+    );
+  } else {
+    winners.forEach((winner) => {
+      els.winnersList.appendChild(buildWinnerRow(winner, seatById.get(winner.id), 'winner-detail-item'));
+    });
+  }
+
+  if (isShowdown) {
+    const revealSeats = (hand.seats || []).filter(
+      (seat) => !seat.folded && seat.holeCards?.some((card) => card !== '🂠') && seat.id !== myPlayerId,
+    );
+    if (revealSeats.length) {
+      const header = document.createElement('li');
+      header.className = 'winner-reveal-kicker';
+      header.textContent = '亮牌';
+      els.winnersList.appendChild(header);
+
+      revealSeats.forEach((seat) => {
+        const handName = handNameForPlayer(winners, seat.id);
+        const li = document.createElement('li');
+        li.className = 'winner-reveal-item';
+        li.innerHTML = `
+          <strong>${seat.name}</strong>
+          <span class="winner-reveal-hand">${handName || '—'}</span>
+          ${winnerCardsHtml(seat.holeCards)}
+        `;
+        els.winnersList.appendChild(li);
+      });
+    }
+  }
+
+  const kickerEl = els.winnersBox.querySelector('.winner-kicker');
+  if (kickerEl) kickerEl.textContent = kicker;
 }
 
 function setDockVisible(visible) {
@@ -270,24 +353,31 @@ function renderActionTimer(hand) {
 }
 
 function formatActionLog(log) {
+  const phase = PHASE_LABEL[log.phase] || log.phase;
+  if (log.action === 'settle') {
+    return `${phase} · ${log.note || '结算'}`;
+  }
+  if (log.action === 'showdown') {
+    return `${phase} · 开始摊牌`;
+  }
+
   const name = log.playerName || '系统';
   const amount = log.amount ? ` ${log.amount}` : '';
   const label = {
     smallBlind: '小盲',
     bigBlind: '大盲',
     fold: '弃牌',
-    check: 'Check',
+    check: '过牌',
     call: '跟注',
     bet: '下注',
     raise: '加注',
-    allin: 'All-in',
+    allin: '全下',
     win: '获胜',
     dealFlop: '发 Flop',
     dealTurn: '发 Turn',
     dealRiver: '发 River',
-    showdown: '摊牌',
   }[log.action] || log.action;
-  return `${PHASE_LABEL[log.phase] || log.phase} · ${name} ${label}${amount}${log.note ? `（${log.note}）` : ''}`;
+  return `${phase} · ${name} ${label}${amount}${log.note ? `（${log.note}）` : ''}`;
 }
 
 function tableSeatClass(index, count) {
@@ -350,6 +440,9 @@ function renderGameState(gameState) {
     scrollToMySeat();
     els.winnersBox.hidden = true;
     els.actionLogBox.hidden = true;
+    els.actionLogBox.classList.remove('is-ended');
+    actionLogOpen = false;
+    lastHandResultSignature = '';
     clearActionTimer();
     els.btnStartHand.hidden = false;
     const isHost = gameState.hostPlayerId === myPlayerId;
@@ -402,29 +495,28 @@ function renderGameState(gameState) {
       <div class="seat-meta">${seat.chips}</div>
       <div class="seat-status-row">
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
-        ${seat.allIn ? '<span class="tag">All-in</span>' : ''}
+        ${seat.allIn ? '<span class="tag">全下</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
-      ${seatCardsHtml(seat.holeCards, isEnded && !seat.folded && seat.id !== myPlayerId)}
       ${seat.bet > 0 ? `<div class="bet-stack">${seat.bet}</div>` : ''}
     `;
     els.seatList.appendChild(li);
   });
   scrollToMySeat();
 
-  if (hand.winners?.length) {
-    els.winnersBox.hidden = false;
-    els.winnersList.innerHTML = '';
-    hand.winners.forEach((w, index) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<strong>${index === 0 ? '赢家 ' : ''}${w.name}</strong><span>+${w.amount}</span><small>${w.handName || w.reason}</small>`;
-      els.winnersList.appendChild(li);
-    });
-  } else {
-    els.winnersBox.hidden = true;
-  }
+  renderWinnerSummary(hand);
+  els.winnersBox.classList.toggle('is-ended', isEnded);
 
   if (hand.actionLogs?.length && hand.phase !== 'waiting') {
+    const hasResultLogs = hand.actionLogs.some((log) => log.action === 'settle' || log.action === 'win');
+    els.actionLogBox.classList.toggle('is-ended', isEnded && hasResultLogs);
+    const resultSignature = handResultSignature(hand);
+    if (resultSignature && resultSignature !== lastHandResultSignature) {
+      if (hasResultLogs) actionLogOpen = true;
+      lastHandResultSignature = resultSignature;
+    }
+    if (hand.canStart) lastHandResultSignature = '';
+
     els.actionLogBox.hidden = false;
     const logs = hand.actionLogs.slice().reverse();
     els.lastActionText.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
@@ -433,12 +525,15 @@ function renderGameState(gameState) {
     els.actionLogList.innerHTML = '';
     logs.forEach((log) => {
       const li = document.createElement('li');
+      if (log.action === 'settle') li.classList.add('is-settle');
       li.textContent = formatActionLog(log);
       els.actionLogList.appendChild(li);
     });
   } else {
     els.actionLogBox.hidden = true;
+    els.actionLogBox.classList.remove('is-ended');
     actionLogOpen = false;
+    if (!hand || hand.canStart) lastHandResultSignature = '';
   }
 
   const canStart = hand.canStart && players.length >= 2;

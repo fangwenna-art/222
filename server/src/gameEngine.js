@@ -498,31 +498,36 @@ export class GameEngine {
 
   _settlePotsByShowdown() {
     const sidePots = this._buildSidePots();
-    const payouts = new Map();
     const winnerDetails = [];
 
-    for (const pot of sidePots) {
+    sidePots.forEach((pot, potIndex) => {
+      const potLabel = potIndex === 0 ? '主池' : `边池${potIndex}`;
+      const potReason = potIndex === 0 ? '主池摊牌' : '边池摊牌';
       const ranked = this._rankPlayers(pot.eligible);
       const best = ranked.reduce((top, item) => (compareScore(item.score, top.score) > 0 ? item : top), ranked[0]);
       const winners = ranked.filter((item) => compareScore(item.score, best.score) === 0);
       const share = Math.floor(pot.amount / winners.length);
       const remainder = pot.amount % winners.length;
+      const settlementParts = [];
 
       winners.forEach((winner, index) => {
         const payout = share + (index === 0 ? remainder : 0);
         this.seats[winner.id].chips += payout;
-        payouts.set(winner.id, (payouts.get(winner.id) ?? 0) + payout);
         winnerDetails.push({
           id: winner.id,
           name: this.names[winner.id],
           amount: payout,
           handName: winner.handName,
-          reason: pot.amount === this.pot ? '主池摊牌' : '边池摊牌',
+          reason: potReason,
           potAmount: pot.amount,
           split: winners.length > 1,
         });
+        settlementParts.push(`${this.names[winner.id]} +${payout}(${winner.handName})`);
       });
-    }
+
+      const splitNote = winners.length > 1 ? ' · 平分' : '';
+      this._log(null, 'settle', pot.amount, `${potLabel} ${pot.amount} · ${settlementParts.join(' · ')}${splitNote}`);
+    });
 
     return winnerDetails;
   }

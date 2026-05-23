@@ -842,6 +842,19 @@ body.room-active .poker-table {
   list-style: none;
   display: grid;
   gap: 4px;
+  max-height: min(38vh, 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.winners-box ul::-webkit-scrollbar {
+  width: 4px;
+}
+
+.winners-box ul::-webkit-scrollbar-thumb {
+  background: rgba(250, 204, 21, 0.35);
+  border-radius: 999px;
 }
 
 .winners-box li {
@@ -849,6 +862,20 @@ body.room-active .poker-table {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 6px;
+}
+
+.winners-box li.winner-detail-item {
+  padding-top: 4px;
+  border-top: 1px solid rgba(253, 230, 138, 0.16);
+  opacity: 0.88;
+}
+
+.winners-box li.winner-detail-item strong {
+  font-size: 0.75rem;
+}
+
+.winners-box li.winner-detail-item span {
+  font-size: 0.8125rem;
 }
 
 .winners-box li strong {
@@ -870,6 +897,45 @@ body.room-active .poker-table {
   font-weight: 700;
   color: #fde68a;
   opacity: 0.82;
+}
+
+.winner-cards {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.winner-cards .card-chip {
+  min-width: 28px;
+  height: 34px;
+  font-size: 0.6875rem;
+}
+
+.winners-box li.winner-reveal-kicker {
+  grid-column: 1 / -1;
+  font-size: 0.5625rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #fbbf24;
+  opacity: 0.8;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(253, 230, 138, 0.16);
+}
+
+.winners-box li.winner-reveal-item {
+  opacity: 0.82;
+}
+
+.winners-box li.winner-reveal-item strong {
+  font-size: 0.75rem;
+}
+
+.winner-reveal-hand {
+  font-size: 0.6875rem;
+  color: #fde68a;
+  font-weight: 700;
 }
 
 .action-log-box {
@@ -917,6 +983,14 @@ body.room-active .poker-table {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid #1e293b;
+}
+
+.action-log-box li.is-settle {
+  color: #fde68a;
+}
+
+.action-log-box.is-ended ul {
+  max-height: 128px;
 }
 
 /* 底部固定操作栏 */
@@ -1192,6 +1266,14 @@ body.has-dock .lobby-card {
 
   .action-log-box ul {
     max-height: 56px;
+  }
+
+  .action-log-box.is-ended ul {
+    max-height: 104px;
+  }
+
+  .winners-box ul {
+    max-height: min(34vh, 200px);
   }
 }
 @media (max-width: 360px) {
