@@ -13,6 +13,7 @@
 - 标准牌型判断：高牌、一对、两对、三条、顺子、同花、葫芦、四条、同花顺
 - 底部固定操作栏（过牌 / 跟注 / 下注 / 加注 / 弃牌 / 全下）
 - 局结束：桌心一行摘要 + 延迟展开结果面板（结算明细与亮牌）
+- 房间保留最近 10 局摘要（「最近局数」列表）
 
 ## 目录结构
 
@@ -96,7 +97,7 @@ npm test
 |------|------|
 | `npm run test:evaluator` | 牌型判断（高牌 → 同花顺） |
 | `npm run test:settlement` | 引擎结算：边池、摊牌节奏、弃牌胜日志 |
-| `node server/src/roomManager.test.js` | 房间控制：房主、行动超时、摊牌定时器 |
+| `npm run test:room` | 房间控制：房主、行动超时、摊牌定时器、牌局历史 |
 
 ## 结算与 UI 说明
 
@@ -140,6 +141,7 @@ npm test
 | `ACTION_TIMEOUT_MS` | `30000` | 行动超时（自动过牌 / 弃牌） |
 | `SHOWDOWN_PAUSE_MS` | `1800` | 摊牌亮牌停留时间（毫秒） |
 | `OFFLINE_AUTO_FOLD_MS` | `30000` | 离线自动弃牌 |
+| `MAX_HAND_HISTORY` | `10` | 房间内保留的最近局数 |
 | `MAX_PLAYERS_PER_ROOM` | `9` | 每房人数上限 |
 
 ## 部署到 Railway

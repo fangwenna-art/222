@@ -9,7 +9,8 @@
     "local": "bash dev-local.sh",
     "test:evaluator": "node server/src/handEvaluator.test.js",
     "test:settlement": "node server/src/gameEngine.settlement.test.js",
-    "test": "npm run test:evaluator && npm run test:settlement",
+    "test:room": "node server/src/roomManager.test.js",
+    "test": "npm run test:evaluator && npm run test:settlement && npm run test:room",
     "postinstall": "npm --prefix server install"
   },
   "engines": {

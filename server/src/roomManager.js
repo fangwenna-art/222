@@ -5,6 +5,48 @@ const OFFLINE_AUTO_FOLD_MS = Number(process.env.OFFLINE_AUTO_FOLD_MS || 30000);
 const ACTION_TIMEOUT_MS = Number(process.env.ACTION_TIMEOUT_MS || 30000);
 const SHOWDOWN_PAUSE_MS = Number(process.env.SHOWDOWN_PAUSE_MS || 1800);
 const MAX_PLAYERS_PER_ROOM = Number(process.env.MAX_PLAYERS_PER_ROOM || 9);
+const MAX_HAND_HISTORY = Number(process.env.MAX_HAND_HISTORY || 10);
+
+function handHistorySignature(engine) {
+  if (!engine || engine.phase !== 'ended') return '';
+  return `${engine.message}|${(engine.winners || []).map((w) => `${w.id}:${w.amount}:${w.reason}`).join(',')}`;
+}
+
+function buildHandHistorySummary(engine) {
+  const winners = engine.winners || [];
+  if (!winners.length) return '本局结束';
+
+  const totalsById = new Map();
+  winners.forEach((winner) => {
+    const current = totalsById.get(winner.id) || {
+      name: winner.name,
+      amount: 0,
+      handName: winner.handName,
+    };
+    current.amount += winner.amount;
+    if (winner.handName) current.handName = winner.handName;
+    totalsById.set(winner.id, current);
+  });
+
+  const entries = [...totalsById.values()];
+  if (entries.length === 1) {
+    const entry = entries[0];
+    const handHint = entry.handName ? ` · ${entry.handName}` : '';
+    return `${entry.name} 获胜 +${entry.amount}${handHint}`;
+  }
+
+  if (entries.length === 2) {
+    return entries
+      .map((entry) => {
+        const handHint = entry.handName ? ` · ${entry.handName}` : '';
+        return `${entry.name} +${entry.amount}${handHint}`;
+      })
+      .join(' · ');
+  }
+
+  const total = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  return `${entries.length} 位赢家 · 共 ${total}`;
+}
 
 function generateRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -33,6 +75,8 @@ function createRoom(roomId) {
     actionTimer: null,
     actionDeadlineAt: null,
     showdownTimer: null,
+    handHistory: [],
+    lastHistorySignature: '',
   };
 }
 
@@ -94,6 +138,7 @@ export class RoomManager {
 
       latestEngine.finalizeShowdown();
       this.syncChipsFromEngine(latestRoom);
+      this._maybeRecordHandHistory(latestRoom);
       this.onRoomChanged(latestRoom);
     }, pauseMs);
   }
@@ -108,6 +153,7 @@ export class RoomManager {
       this.clearShowdownTimer(room);
       engine.finalizeShowdown();
       this.syncChipsFromEngine(room);
+      this._maybeRecordHandHistory(room);
       return true;
     }
 
@@ -125,6 +171,25 @@ export class RoomManager {
       this.clearShowdownTimer(room);
       room.engine.finalizeShowdown();
       this.syncChipsFromEngine(room);
+      this._maybeRecordHandHistory(room);
+    }
+  }
+
+  _maybeRecordHandHistory(room) {
+    const engine = room?.engine;
+    if (!engine || engine.phase !== 'ended') return;
+
+    const signature = handHistorySignature(engine);
+    if (!signature || signature === room.lastHistorySignature) return;
+
+    room.lastHistorySignature = signature;
+    room.handHistory.unshift({
+      summary: buildHandHistorySummary(engine),
+      wasShowdown: (engine.showdownHands?.length ?? 0) > 0,
+      endedAt: Date.now(),
+    });
+    if (room.handHistory.length > MAX_HAND_HISTORY) {
+      room.handHistory.length = MAX_HAND_HISTORY;
     }
   }
 
@@ -144,6 +209,7 @@ export class RoomManager {
       this._scheduleShowdownTimer(room);
       return;
     }
+    this._maybeRecordHandHistory(room);
     this._scheduleActionTimer(room);
   }
 
@@ -329,6 +395,11 @@ export class RoomManager {
         isHost: p.id === room.hostPlayerId,
       })),
       hand: room.engine ? room.engine.toPublicState(viewerPlayerId) : null,
+      handHistory: room.handHistory.map(({ summary, wasShowdown, endedAt }) => ({
+        summary,
+        wasShowdown,
+        endedAt,
+      })),
     };
   }
 

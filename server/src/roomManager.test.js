@@ -160,4 +160,22 @@ manager.clearActionTimer(room);
   startManager.clearShowdownTimer(startRoom);
 }
 
+{
+  const historyManager = new RoomManager({ actionTimeoutMs: 1000000, showdownPauseMs: 1000000 });
+  const { room: historyRoom } = historyManager.createRoom('A');
+  const joined = historyManager.joinRoom(historyRoom.id, 'B');
+  assert(joined.ok, 'history room should accept B');
+  historyManager.startHand(historyRoom.id);
+  const raiserId = historyRoom.engine.order[historyRoom.engine.activeIndex];
+  const folderId = historyRoom.engine.order[(historyRoom.engine.activeIndex + 1) % historyRoom.engine.order.length];
+  historyRoom.engine.applyAction(raiserId, 'raise', 40);
+  historyRoom.engine.applyAction(folderId, 'fold');
+  historyManager._afterEngineMutation(historyRoom);
+  const state = historyManager.buildGameState(historyRoom, raiserId);
+  assert(state.handHistory?.length === 1, 'fold win should append one hand history entry');
+  assert(state.handHistory[0].summary.includes('+'), `history summary should include payout, got ${state.handHistory[0].summary}`);
+  assert(state.handHistory[0].wasShowdown === false, 'fold win should not mark showdown history');
+  historyManager.clearShowdownTimer(historyRoom);
+}
+
 console.log('全部房间控制测试通过');

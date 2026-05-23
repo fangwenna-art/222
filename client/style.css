@@ -405,6 +405,48 @@ body.room-active .poker-table {
   max-width: 92%;
 }
 
+.hand-history {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(51, 65, 85, 0.72);
+}
+
+.hand-history-kicker {
+  margin-bottom: 6px;
+  font-size: 0.5625rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+}
+
+.hand-history-list {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  max-height: 88px;
+  overflow-y: auto;
+}
+
+.hand-history-list li {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.hand-history-list li:first-child {
+  color: #fde68a;
+}
+
+.hand-history-list li[data-showdown="true"]::before {
+  content: '摊牌 · ';
+  color: #7dd3fc;
+  font-size: 0.6875rem;
+}
+
 .community-cards {
   display: flex;
   justify-content: center;

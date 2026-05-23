@@ -68,6 +68,8 @@ const els = {
   resultSummaryList: $('resultSummaryList'),
   resultLogKicker: $('resultLogKicker'),
   resultLogList: $('resultLogList'),
+  handHistoryBox: $('handHistoryBox'),
+  handHistoryList: $('handHistoryList'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   actionHint: $('actionHint'),
@@ -588,6 +590,19 @@ function orderSeatsForTable(seats) {
 }
 
 /** 仅渲染服务端 gameState */
+function renderHandHistory(entries) {
+  const list = entries || [];
+  if (!els.handHistoryBox || !els.handHistoryList) return;
+  els.handHistoryBox.hidden = list.length === 0;
+  els.handHistoryList.innerHTML = '';
+  list.forEach((entry) => {
+    const li = document.createElement('li');
+    li.textContent = entry.summary || '—';
+    if (entry.wasShowdown) li.dataset.showdown = 'true';
+    els.handHistoryList.appendChild(li);
+  });
+}
+
 function renderGameState(gameState) {
   if (!gameState) return;
   window.__lastGameState = gameState;
@@ -601,6 +616,7 @@ function renderGameState(gameState) {
   window.__lastHandState = hand;
 
   els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
+  renderHandHistory(gameState.handHistory);
 
   if (!hand) {
     els.gamePhase.textContent = '大厅';
