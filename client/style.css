@@ -1075,6 +1075,12 @@ body.room-active .poker-table {
   gap: 7px;
 }
 
+.action-bar.is-waiting .action-buttons,
+.action-bar.is-waiting .bet-controls,
+.action-bar.is-waiting .all-in-confirm {
+  display: none;
+}
+
 .action-hint {
   padding: 6px 8px;
   border-radius: 10px;

@@ -95,6 +95,7 @@ let currentPlayerName = currentSession?.playerName || window.localStorage.getIte
 let betPanelOpen = false;
 let resultPanelOpen = false;
 let lastHandResultSignature = '';
+let lastRenderedHandPhase = null;
 let dockResizeObserver = null;
 
 function updateLayoutMetrics() {
@@ -245,6 +246,10 @@ function buildWinnerRow(winner, seat, className, includeCards = false) {
   return li;
 }
 
+function isHandInProgress(hand) {
+  return Boolean(hand && hand.phase !== 'waiting' && hand.phase !== 'ended');
+}
+
 function renderResultSummary(hand) {
   const winners = hand?.winners;
   els.resultSummaryList.innerHTML = '';
@@ -291,9 +296,19 @@ function renderResultSummary(hand) {
 
 function renderResultPanel(hand) {
   const isEnded = hand?.phase === 'ended';
-  const hasLogs = hand?.actionLogs?.length && hand.phase !== 'waiting';
-  const hasWinners = isEnded && hand.winners?.length;
-  const showPanel = Boolean(hasLogs || hasWinners);
+
+  if (!isEnded) {
+    els.resultPanel.hidden = true;
+    els.resultPanel.classList.remove('is-ended');
+    resultPanelOpen = false;
+    els.resultPanelBody.hidden = true;
+    els.btnToggleResult.classList.remove('is-open');
+    return;
+  }
+
+  const hasLogs = hand.actionLogs?.length;
+  const hasWinners = hand.winners?.length;
+  const showPanel = Boolean(hasWinners || hasLogs);
 
   els.resultPanel.hidden = !showPanel;
   if (!showPanel) {
@@ -304,7 +319,7 @@ function renderResultPanel(hand) {
     return;
   }
 
-  els.resultPanel.classList.toggle('is-ended', isEnded);
+  els.resultPanel.classList.add('is-ended');
   const summaryKicker = renderResultSummary(hand);
   els.resultSummaryList.hidden = !hasWinners;
   els.resultLogKicker.hidden = !hasWinners || !hasLogs;
@@ -315,24 +330,18 @@ function renderResultPanel(hand) {
     if (hasResultLogs) resultPanelOpen = true;
     lastHandResultSignature = resultSignature;
   }
-  if (hand.canStart) lastHandResultSignature = '';
 
-  if (hasLogs) {
-    const logs = hand.actionLogs.slice().reverse();
-    els.resultLatest.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
-    els.resultLogList.innerHTML = '';
-    logs.forEach((log) => {
-      const li = document.createElement('li');
-      if (log.action === 'settle') li.classList.add('is-settle');
-      li.textContent = formatActionLog(log);
-      els.resultLogList.appendChild(li);
-    });
-  } else {
-    els.resultLatest.textContent = '—';
-    els.resultLogList.innerHTML = '';
-  }
+  const logs = hand.actionLogs.slice().reverse();
+  els.resultLatest.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
+  els.resultLogList.innerHTML = '';
+  logs.forEach((log) => {
+    const li = document.createElement('li');
+    if (log.action === 'settle') li.classList.add('is-settle');
+    li.textContent = formatActionLog(log);
+    els.resultLogList.appendChild(li);
+  });
 
-  els.resultKicker.textContent = summaryKicker || '行动记录';
+  els.resultKicker.textContent = summaryKicker || '本局结果';
   els.resultPanelBody.hidden = !resultPanelOpen;
   els.btnToggleResult.classList.toggle('is-open', resultPanelOpen);
 }
@@ -484,6 +493,7 @@ function renderGameState(gameState) {
     els.resultPanel.classList.remove('is-ended');
     resultPanelOpen = false;
     lastHandResultSignature = '';
+    lastRenderedHandPhase = null;
     clearActionTimer();
     els.btnStartHand.hidden = false;
     const isHost = gameState.hostPlayerId === myPlayerId;
@@ -545,41 +555,49 @@ function renderGameState(gameState) {
   });
   scrollToMySeat();
 
+  if (lastRenderedHandPhase === 'ended' && isHandInProgress(hand)) {
+    resultPanelOpen = false;
+    lastHandResultSignature = '';
+  }
+  lastRenderedHandPhase = hand.phase;
+
   renderResultPanel(hand);
 
-  const canStart = hand.canStart && players.length >= 2;
+  const inHand = isHandInProgress(hand);
+  const canStartNew = hand.canStart && players.length >= 2 && !inHand;
   const isHost = gameState.hostPlayerId === myPlayerId;
-  els.btnStartHand.hidden = !canStart;
-  els.btnStartHand.disabled = !canStart || !isHost;
+  els.btnStartHand.hidden = !canStartNew;
+  els.btnStartHand.disabled = !canStartNew || !isHost;
   els.btnStartHand.textContent = isHost ? '开始新一局' : '等待房主开始';
 
   const actions = hand.availableActions || {};
   const myTurn = Boolean(actions.isActive);
-  const inHand = hand.phase !== 'waiting' && hand.phase !== 'ended';
   if (!myTurn || !inHand) els.allInConfirm.hidden = true;
   const hasAmountAction = Boolean(actions.canBet || actions.canRaise);
-  els.actionBar.hidden = !myTurn || !inHand;
+  els.actionBar.hidden = !inHand;
+  els.actionBar.classList.toggle('is-waiting', inHand && !myTurn);
+  const showActionButtons = myTurn && inHand;
 
-  const showBetControls = myTurn && hasAmountAction && betPanelOpen;
+  const showBetControls = showActionButtons && hasAmountAction && betPanelOpen;
   document.body.classList.toggle('bet-panel-open', showBetControls);
   els.betAmount.closest('.bet-controls').hidden = !showBetControls;
   updateLayoutMetrics();
-  els.btnAmountToggle.hidden = !hasAmountAction;
+  els.btnAmountToggle.hidden = !showActionButtons || !hasAmountAction;
   els.btnAmountToggle.disabled = !hasAmountAction;
   els.btnAmountToggle.classList.toggle('is-active', showBetControls);
-  els.betAmount.disabled = !myTurn;
+  els.betAmount.disabled = !showActionButtons;
   els.betAmount.min = String(actions.canBet ? actions.minBet : actions.minRaise);
   els.betAmount.placeholder = actions.canBet ? `最小下注 ${actions.minBet}` : `最小加注 ${actions.minRaise}`;
-  if (myTurn && hasAmountAction && !els.betAmount.value) {
+  if (showActionButtons && hasAmountAction && !els.betAmount.value) {
     setBetAmount(actions.canBet ? actions.minBet : actions.minRaise);
   }
 
-  els.btnFold.hidden = !actions.canFold;
-  els.btnCheck.hidden = !actions.canCheck;
-  els.btnBet.hidden = !actions.canBet;
-  els.btnCall.hidden = !actions.canCall;
-  els.btnRaise.hidden = !actions.canRaise;
-  els.btnAllIn.hidden = !actions.canAllIn;
+  els.btnFold.hidden = !showActionButtons || !actions.canFold;
+  els.btnCheck.hidden = !showActionButtons || !actions.canCheck;
+  els.btnBet.hidden = !showActionButtons || !actions.canBet;
+  els.btnCall.hidden = !showActionButtons || !actions.canCall;
+  els.btnRaise.hidden = !showActionButtons || !actions.canRaise;
+  els.btnAllIn.hidden = !showActionButtons || !actions.canAllIn;
 
   els.btnFold.disabled = !actions.canFold;
   els.btnCheck.disabled = !actions.canCheck;
@@ -587,10 +605,10 @@ function renderGameState(gameState) {
   els.btnCall.disabled = !actions.canCall;
   els.btnRaise.disabled = !actions.canRaise;
   els.btnAllIn.disabled = !actions.canAllIn;
-  els.btnHalfPot.disabled = !myTurn;
-  els.btnPot.disabled = !myTurn;
-  els.btnDouble.disabled = !myTurn;
-  els.btnTriple.disabled = !myTurn;
+  els.btnHalfPot.disabled = !showActionButtons;
+  els.btnPot.disabled = !showActionButtons;
+  els.btnDouble.disabled = !showActionButtons;
+  els.btnTriple.disabled = !showActionButtons;
 
   els.btnCall.textContent = actions.toCall > 0 ? `跟注 ${actions.toCall}` : '跟注';
   els.btnCheck.textContent = '过牌';
@@ -598,19 +616,30 @@ function renderGameState(gameState) {
   els.btnAmountToggle.textContent = showBetControls ? '收起金额' : '调整金额';
   els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
   els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
-  els.actionHint.textContent = actions.canRaise
-    ? `跟注额 ${actions.toCall || 0} · 最小加注 ${actions.minRaise} · 可用 ${actions.maxAmount}`
-    : actions.canBet
-      ? `最小下注 ${actions.minBet} · 可用 ${actions.maxAmount}`
-      : actions.toCall > 0
-        ? `需要跟注 ${actions.toCall} · 可用 ${actions.maxAmount}`
-        : '可以过牌或选择全下';
+
+  if (showActionButtons) {
+    els.actionHint.textContent = actions.canRaise
+      ? `跟注额 ${actions.toCall || 0} · 最小加注 ${actions.minRaise} · 可用 ${actions.maxAmount}`
+      : actions.canBet
+        ? `最小下注 ${actions.minBet} · 可用 ${actions.maxAmount}`
+        : actions.toCall > 0
+          ? `需要跟注 ${actions.toCall} · 可用 ${actions.maxAmount}`
+          : '可以过牌或选择全下';
+  } else if (inHand) {
+    const activeSeat = hand.seats?.find((seat) => seat.id === hand.activePlayerId);
+    els.actionHint.textContent = activeSeat
+      ? `等待 ${activeSeat.name} 行动`
+      : '等待其他玩家';
+  }
+  els.actionHint.hidden = !inHand;
   syncDockVisibility();
 }
 
 function clearRoomView() {
   betPanelOpen = false;
   resultPanelOpen = false;
+  lastHandResultSignature = '';
+  lastRenderedHandPhase = null;
   document.body.classList.remove('bet-panel-open');
   setEntryMode();
   setDockVisible(false);
