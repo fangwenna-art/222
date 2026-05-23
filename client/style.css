@@ -63,7 +63,8 @@ header h1 {
   color: var(--me-color);
 }
 
-.connection-badge {
+.connection-badge,
+.lobby-connection-status {
   position: fixed;
   top: calc(8px + var(--safe-top));
   left: 8px;
@@ -71,6 +72,10 @@ header h1 {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+}
+
+body.room-active .lobby-connection-status {
+  display: none;
 }
 
 .compact-status {
@@ -220,26 +225,37 @@ body.room-active .room-card {
 }
 
 .room-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 10px;
-  gap: 10px;
 }
 
 body.room-active .room-head {
   margin-bottom: 6px;
-  padding-left: 76px;
 }
 
-.room-head h2 {
-  font-size: 1rem;
+.room-head-status {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.room-id {
+  min-width: 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+
+.room-id-label {
+  color: #64748b;
 }
 
 .room-id strong {
   color: var(--me-color);
-  letter-spacing: 0.1em;
-  font-size: 1.125rem;
+  letter-spacing: 0.08em;
+  font-size: 0.9375rem;
 }
 
 .room-leave-btn {
@@ -248,6 +264,8 @@ body.room-active .room-head {
   background: #334155;
   color: #cbd5e1;
   font-size: 0.75rem;
+  white-space: nowrap;
+  justify-self: end;
 }
 
 .phase-bar {

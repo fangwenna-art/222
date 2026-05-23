@@ -37,6 +37,7 @@ const $ = (id) => document.getElementById(id);
 
 const els = {
   connectionStatus: $('connectionStatus'),
+  lobbyConnectionStatus: $('lobbyConnectionStatus'),
   serverUrl: $('serverUrl'),
   playerName: $('playerName'),
   roomId: $('roomId'),
@@ -249,8 +250,15 @@ function rememberSession(res) {
 }
 
 function setStatus(text, type = 'offline') {
-  els.connectionStatus.textContent = text;
-  els.connectionStatus.className = `badge connection-badge badge--${type}`;
+  const className = `badge badge--${type}`;
+  if (els.connectionStatus) {
+    els.connectionStatus.textContent = text;
+    els.connectionStatus.className = `${className} room-head-status`;
+  }
+  if (els.lobbyConnectionStatus) {
+    els.lobbyConnectionStatus.textContent = text;
+    els.lobbyConnectionStatus.className = `${className} lobby-connection-status`;
+  }
 }
 
 function setMessage(text, type = '') {

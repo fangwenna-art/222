@@ -7,13 +7,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <span id="connectionStatus" class="badge badge--offline connection-badge">未连接</span>
   <div class="app">
     <header>
       <h1>德州扑克</h1>
     </header>
 
     <section class="card lobby-card" id="lobbyCard">
+      <span id="lobbyConnectionStatus" class="badge badge--offline lobby-connection-status">未连接</span>
       <p class="screen-kicker">进入牌桌前</p>
       <h2>设置昵称并选择房间</h2>
       <label for="playerName">昵称</label>
@@ -32,10 +32,8 @@
 
     <section class="card room-card" id="roomPanel" hidden>
       <div class="room-head">
-        <div>
-          <h2>当前房间</h2>
-          <p class="room-id"><strong id="currentRoomId">—</strong></p>
-        </div>
+        <span id="connectionStatus" class="badge badge--offline room-head-status">未连接</span>
+        <p class="room-id"><span class="room-id-label">房间号</span> <strong id="currentRoomId">—</strong></p>
         <button id="btnLeaveRoom" type="button" class="room-leave-btn">退出</button>
       </div>
 
