@@ -66,14 +66,16 @@
         <div id="myCards" class="cards-row my-cards"></div>
       </div>
 
-      <div id="winnersBox" class="winners-box" hidden>
-        <div class="winner-kicker">本局结果</div>
-        <ul id="winnersList"></ul>
-      </div>
-
-      <div id="actionLogBox" class="action-log-box" hidden>
-        <button id="btnToggleLogs" type="button" class="log-summary">最近：<span id="lastActionText">—</span></button>
-        <ul id="actionLogList" hidden></ul>
+      <div id="resultPanel" class="result-panel" hidden>
+        <button id="btnToggleResult" type="button" class="result-panel-toggle">
+          <span id="resultKicker" class="result-kicker">行动记录</span>
+          <span id="resultLatest" class="result-latest">—</span>
+        </button>
+        <div id="resultPanelBody" class="result-panel-body" hidden>
+          <ul id="resultSummaryList" class="result-summary-list"></ul>
+          <div id="resultLogKicker" class="result-log-kicker" hidden>本局明细</div>
+          <ul id="resultLogList" class="result-log-list"></ul>
+        </div>
       </div>
     </section>
   </div>

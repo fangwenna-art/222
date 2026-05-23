@@ -51,6 +51,7 @@ export class GameEngine {
     this.activeIndex = 0;
     this.lastRaiserId = null;
     this.winners = [];
+    this.showdownHands = [];
     this.actionLogs = [];
     this.actionDeadlineAt = null;
     this.actionTimeoutMs = 0;
@@ -103,6 +104,7 @@ export class GameEngine {
     this.currentBet = 0;
     this.lastRaiseAmount = BIG_BLIND;
     this.winners = [];
+    this.showdownHands = [];
     this.actionLogs = [];
     this.actionDeadlineAt = null;
     this.lastRaiserId = null;
@@ -455,6 +457,7 @@ export class GameEngine {
   _awardPot(winnerId, reason) {
     const seat = this.seats[winnerId];
     seat.chips += this.pot;
+    this.showdownHands = [];
     this.winners = [{ id: winnerId, name: this.names[winnerId], amount: this.pot, reason }];
     this._log(winnerId, 'win', this.pot, reason);
     this.pot = 0;
@@ -496,6 +499,20 @@ export class GameEngine {
     });
   }
 
+  _buildShowdownHands() {
+    const contenders = this.order.filter((id) => {
+      const seat = this.seats[id];
+      return seat && !seat.folded && seat.holeCards.length > 0;
+    });
+    return this._rankPlayers(contenders)
+      .sort((a, b) => compareScore(b.score, a.score))
+      .map(({ id, handName }) => ({
+        id,
+        name: this.names[id],
+        handName,
+      }));
+  }
+
   _settlePotsByShowdown() {
     const sidePots = this._buildSidePots();
     const winnerDetails = [];
@@ -535,6 +552,7 @@ export class GameEngine {
   _showdown() {
     this.phase = 'showdown';
     this._log(null, 'showdown', 0, '摊牌结算');
+    this.showdownHands = this._buildShowdownHands();
     this.winners = this._settlePotsByShowdown();
     this.pot = 0;
     this.phase = 'ended';
@@ -588,6 +606,7 @@ export class GameEngine {
       communityCards: this.community.map(cardLabel),
       message: this.message,
       winners: this.winners,
+      showdownHands: this.showdownHands,
       canStart: this.canStart(),
       seats: this.order.map((id) => {
         const s = this.seats[id];

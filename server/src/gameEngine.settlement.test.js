@@ -72,6 +72,9 @@ function makeEngine() {
   const revealedB = publicState.seats.find((seat) => seat.id === 'B')?.holeCards;
   assert(revealedA?.includes('A♠') && revealedA?.includes('3♦'), 'ended hand should reveal A hole cards to opponents');
   assert(revealedB?.includes('A♥') && revealedB?.includes('3♣'), 'ended hand should reveal B hole cards to opponents');
+  assert(publicState.showdownHands?.length === 3, 'showdown should expose all non-folded hand names');
+  const loserC = publicState.showdownHands.find((entry) => entry.id === 'C');
+  assert(loserC?.handName === '高牌', `losing showdown player should have hand name, got ${loserC?.handName}`);
 }
 
 {
@@ -100,6 +103,11 @@ function makeEngine() {
   assert(engine.winners.some((w) => w.reason === '边池摊牌'), 'should include side pot winner details');
   const publicState = engine.toPublicState('A');
   assert(publicState.actionLogs.some((log) => log.action === 'settle'), 'public state should expose settle logs');
+  assert(publicState.showdownHands?.length === 3, 'side-pot showdown should expose all showdown hand names');
+  assert(
+    publicState.showdownHands.some((entry) => entry.id === 'C' && entry.handName),
+    'side-pot loser should include hand name in showdownHands',
+  );
 }
 
 {

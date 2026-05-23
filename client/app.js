@@ -52,12 +52,14 @@ const els = {
   myCards: $('myCards'),
   communityCards: $('communityCards'),
   seatList: $('seatList'),
-  winnersBox: $('winnersBox'),
-  winnersList: $('winnersList'),
-  actionLogBox: $('actionLogBox'),
-  actionLogList: $('actionLogList'),
-  btnToggleLogs: $('btnToggleLogs'),
-  lastActionText: $('lastActionText'),
+  resultPanel: $('resultPanel'),
+  btnToggleResult: $('btnToggleResult'),
+  resultKicker: $('resultKicker'),
+  resultLatest: $('resultLatest'),
+  resultPanelBody: $('resultPanelBody'),
+  resultSummaryList: $('resultSummaryList'),
+  resultLogKicker: $('resultLogKicker'),
+  resultLogList: $('resultLogList'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
   actionHint: $('actionHint'),
@@ -91,7 +93,7 @@ let currentSession = loadSession();
 let myPlayerId = currentSession?.playerId || null;
 let currentPlayerName = currentSession?.playerName || window.localStorage.getItem(PROFILE_KEY) || '';
 let betPanelOpen = false;
-let actionLogOpen = false;
+let resultPanelOpen = false;
 let lastHandResultSignature = '';
 let dockResizeObserver = null;
 
@@ -231,10 +233,6 @@ function formatWinnerDetail(winner) {
   return parts.join(' · ') || '获胜';
 }
 
-function handNameForPlayer(winners, playerId) {
-  return winners.find((w) => w.id === playerId)?.handName || '';
-}
-
 function buildWinnerRow(winner, seat, className, includeCards = false) {
   const li = document.createElement('li');
   li.className = className;
@@ -247,52 +245,96 @@ function buildWinnerRow(winner, seat, className, includeCards = false) {
   return li;
 }
 
-function renderWinnerSummary(hand) {
+function renderResultSummary(hand) {
   const winners = hand?.winners;
-  els.winnersBox.hidden = !winners?.length;
-  els.winnersList.innerHTML = '';
-  if (!winners?.length) return;
+  els.resultSummaryList.innerHTML = '';
+  if (!winners?.length || hand.phase !== 'ended') return '';
 
   const seatById = new Map((hand.seats || []).map((seat) => [seat.id, seat]));
   const kicker = winners.length > 1 ? `本局结果 · ${winners.length} 项结算` : '本局结果';
-  const isShowdown = winners.some((winner) => winner.handName);
+  const isShowdown = (hand.showdownHands?.length ?? 0) > 0;
 
   if (winners.length === 1) {
-    els.winnersList.appendChild(
+    els.resultSummaryList.appendChild(
       buildWinnerRow(winners[0], seatById.get(winners[0].id), 'winner-summary-item', !isShowdown),
     );
   } else {
     winners.forEach((winner) => {
-      els.winnersList.appendChild(buildWinnerRow(winner, seatById.get(winner.id), 'winner-detail-item'));
+      els.resultSummaryList.appendChild(buildWinnerRow(winner, seatById.get(winner.id), 'winner-detail-item'));
     });
   }
 
   if (isShowdown) {
-    const revealSeats = (hand.seats || []).filter(
-      (seat) => !seat.folded && seat.holeCards?.some((card) => card !== '🂠') && seat.id !== myPlayerId,
-    );
-    if (revealSeats.length) {
+    const revealEntries = (hand.showdownHands || []).filter((entry) => entry.id !== myPlayerId);
+    if (revealEntries.length) {
       const header = document.createElement('li');
       header.className = 'winner-reveal-kicker';
       header.textContent = '亮牌';
-      els.winnersList.appendChild(header);
+      els.resultSummaryList.appendChild(header);
 
-      revealSeats.forEach((seat) => {
-        const handName = handNameForPlayer(winners, seat.id);
+      revealEntries.forEach((entry) => {
+        const seat = seatById.get(entry.id);
         const li = document.createElement('li');
         li.className = 'winner-reveal-item';
         li.innerHTML = `
-          <strong>${seat.name}</strong>
-          <span class="winner-reveal-hand">${handName || '—'}</span>
-          ${winnerCardsHtml(seat.holeCards)}
+          <strong>${entry.name}</strong>
+          <span class="winner-reveal-hand">${entry.handName || '—'}</span>
+          ${winnerCardsHtml(seat?.holeCards)}
         `;
-        els.winnersList.appendChild(li);
+        els.resultSummaryList.appendChild(li);
       });
     }
   }
 
-  const kickerEl = els.winnersBox.querySelector('.winner-kicker');
-  if (kickerEl) kickerEl.textContent = kicker;
+  return kicker;
+}
+
+function renderResultPanel(hand) {
+  const isEnded = hand?.phase === 'ended';
+  const hasLogs = hand?.actionLogs?.length && hand.phase !== 'waiting';
+  const hasWinners = isEnded && hand.winners?.length;
+  const showPanel = Boolean(hasLogs || hasWinners);
+
+  els.resultPanel.hidden = !showPanel;
+  if (!showPanel) {
+    els.resultPanel.classList.remove('is-ended');
+    resultPanelOpen = false;
+    els.resultPanelBody.hidden = true;
+    els.btnToggleResult.classList.remove('is-open');
+    return;
+  }
+
+  els.resultPanel.classList.toggle('is-ended', isEnded);
+  const summaryKicker = renderResultSummary(hand);
+  els.resultSummaryList.hidden = !hasWinners;
+  els.resultLogKicker.hidden = !hasWinners || !hasLogs;
+
+  const hasResultLogs = hand.actionLogs.some((log) => log.action === 'settle' || log.action === 'win');
+  const resultSignature = handResultSignature(hand);
+  if (resultSignature && resultSignature !== lastHandResultSignature) {
+    if (hasResultLogs) resultPanelOpen = true;
+    lastHandResultSignature = resultSignature;
+  }
+  if (hand.canStart) lastHandResultSignature = '';
+
+  if (hasLogs) {
+    const logs = hand.actionLogs.slice().reverse();
+    els.resultLatest.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
+    els.resultLogList.innerHTML = '';
+    logs.forEach((log) => {
+      const li = document.createElement('li');
+      if (log.action === 'settle') li.classList.add('is-settle');
+      li.textContent = formatActionLog(log);
+      els.resultLogList.appendChild(li);
+    });
+  } else {
+    els.resultLatest.textContent = '—';
+    els.resultLogList.innerHTML = '';
+  }
+
+  els.resultKicker.textContent = summaryKicker || '行动记录';
+  els.resultPanelBody.hidden = !resultPanelOpen;
+  els.btnToggleResult.classList.toggle('is-open', resultPanelOpen);
 }
 
 function setDockVisible(visible) {
@@ -438,10 +480,9 @@ function renderGameState(gameState) {
       els.seatList.appendChild(li);
     });
     scrollToMySeat();
-    els.winnersBox.hidden = true;
-    els.actionLogBox.hidden = true;
-    els.actionLogBox.classList.remove('is-ended');
-    actionLogOpen = false;
+    els.resultPanel.hidden = true;
+    els.resultPanel.classList.remove('is-ended');
+    resultPanelOpen = false;
     lastHandResultSignature = '';
     clearActionTimer();
     els.btnStartHand.hidden = false;
@@ -504,37 +545,7 @@ function renderGameState(gameState) {
   });
   scrollToMySeat();
 
-  renderWinnerSummary(hand);
-  els.winnersBox.classList.toggle('is-ended', isEnded);
-
-  if (hand.actionLogs?.length && hand.phase !== 'waiting') {
-    const hasResultLogs = hand.actionLogs.some((log) => log.action === 'settle' || log.action === 'win');
-    els.actionLogBox.classList.toggle('is-ended', isEnded && hasResultLogs);
-    const resultSignature = handResultSignature(hand);
-    if (resultSignature && resultSignature !== lastHandResultSignature) {
-      if (hasResultLogs) actionLogOpen = true;
-      lastHandResultSignature = resultSignature;
-    }
-    if (hand.canStart) lastHandResultSignature = '';
-
-    els.actionLogBox.hidden = false;
-    const logs = hand.actionLogs.slice().reverse();
-    els.lastActionText.textContent = formatActionLog(logs[0]).replace(/^.*? · /, '');
-    els.actionLogList.hidden = !actionLogOpen;
-    els.btnToggleLogs.classList.toggle('is-open', actionLogOpen);
-    els.actionLogList.innerHTML = '';
-    logs.forEach((log) => {
-      const li = document.createElement('li');
-      if (log.action === 'settle') li.classList.add('is-settle');
-      li.textContent = formatActionLog(log);
-      els.actionLogList.appendChild(li);
-    });
-  } else {
-    els.actionLogBox.hidden = true;
-    els.actionLogBox.classList.remove('is-ended');
-    actionLogOpen = false;
-    if (!hand || hand.canStart) lastHandResultSignature = '';
-  }
+  renderResultPanel(hand);
 
   const canStart = hand.canStart && players.length >= 2;
   const isHost = gameState.hostPlayerId === myPlayerId;
@@ -599,7 +610,7 @@ function renderGameState(gameState) {
 
 function clearRoomView() {
   betPanelOpen = false;
-  actionLogOpen = false;
+  resultPanelOpen = false;
   document.body.classList.remove('bet-panel-open');
   setEntryMode();
   setDockVisible(false);
@@ -775,10 +786,10 @@ els.btnRaise.addEventListener('click', () => {
 els.btnAllIn.addEventListener('click', showAllInConfirm);
 els.btnCancelAllIn.addEventListener('click', hideAllInConfirm);
 els.btnConfirmAllIn.addEventListener('click', () => emitAction('allin'));
-els.btnToggleLogs.addEventListener('click', () => {
-  actionLogOpen = !actionLogOpen;
-  els.actionLogList.hidden = !actionLogOpen;
-  els.btnToggleLogs.classList.toggle('is-open', actionLogOpen);
+els.btnToggleResult.addEventListener('click', () => {
+  resultPanelOpen = !resultPanelOpen;
+  els.resultPanelBody.hidden = !resultPanelOpen;
+  els.btnToggleResult.classList.toggle('is-open', resultPanelOpen);
 });
 els.betAmount.addEventListener('input', () => {
   const hand = getCurrentHand();
