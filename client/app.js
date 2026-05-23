@@ -60,6 +60,7 @@ const els = {
   lastActionText: $('lastActionText'),
   btnStartHand: $('btnStartHand'),
   actionBar: $('actionBar'),
+  actionHint: $('actionHint'),
   btnLeaveRoom: $('btnLeaveRoom'),
   betAmount: $('betAmount'),
   btnHalfPot: $('btnHalfPot'),
@@ -372,7 +373,7 @@ function renderGameState(gameState) {
   els.mySeatPanel.hidden = !mySeat;
   els.mySeatName.textContent = mySeat?.name || '我';
   els.mySeatMeta.textContent = mySeat
-    ? `筹码 ${mySeat.chips} · 本轮 ${mySeat.bet}${mySeat.folded ? ' · 已弃牌' : ''}${mySeat.allIn ? ' · All-in' : ''}`
+    ? `筹码 ${mySeat.chips} · 本轮 ${mySeat.bet}${mySeat.folded ? ' · 已弃牌' : ''}${mySeat.allIn ? ' · 全下' : ''}`
     : '旁观中';
   renderCards(els.myCards, mySeat?.holeCards || []);
 
@@ -486,8 +487,18 @@ function renderGameState(gameState) {
   els.btnTriple.disabled = !myTurn;
 
   els.btnCall.textContent = actions.toCall > 0 ? `跟注 ${actions.toCall}` : '跟注';
+  els.btnCheck.textContent = '过牌';
+  els.btnAllIn.textContent = '全下';
+  els.btnAmountToggle.textContent = showBetControls ? '收起金额' : '调整金额';
   els.btnBet.textContent = `下注 ${getBetAmount() || actions.minBet}`;
   els.btnRaise.textContent = `加注 ${getBetAmount() || actions.minRaise}`;
+  els.actionHint.textContent = actions.canRaise
+    ? `跟注额 ${actions.toCall || 0} · 最小加注 ${actions.minRaise} · 可用 ${actions.maxAmount}`
+    : actions.canBet
+      ? `最小下注 ${actions.minBet} · 可用 ${actions.maxAmount}`
+      : actions.toCall > 0
+        ? `需要跟注 ${actions.toCall} · 可用 ${actions.maxAmount}`
+        : '可以过牌或选择全下';
   syncDockVisibility();
 }
 
@@ -501,7 +512,6 @@ function clearRoomView() {
   els.mySeatPanel.hidden = true;
   els.allInConfirm.hidden = true;
   clearActionTimer();
-  els.playerCount.textContent = '0';
 }
 
 socket.on('connect', () => {

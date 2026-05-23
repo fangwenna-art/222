@@ -81,8 +81,9 @@
   <footer id="bottomDock" class="bottom-dock" hidden>
     <button id="btnStartHand" type="button" class="dock-btn dock-btn--start">开始新一局</button>
     <div id="actionBar" class="action-bar" hidden>
+      <div id="actionHint" class="action-hint">等待行动</div>
       <div class="bet-controls" hidden>
-        <label for="betAmount">下注金额</label>
+        <label for="betAmount">下注 / 加注金额</label>
         <input id="betAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="输入金额" />
         <div class="quick-bets">
           <button id="btnHalfPot" type="button">1/2 池</button>
@@ -92,20 +93,24 @@
         </div>
       </div>
       <div class="action-buttons">
-        <button id="btnAmountToggle" type="button" class="btn-secondary">金额</button>
-        <button id="btnFold" type="button" class="btn-danger">弃牌</button>
-        <button id="btnCheck" type="button">Check</button>
-        <button id="btnBet" type="button">下注</button>
-        <button id="btnCall" type="button">跟注</button>
-        <button id="btnRaise" type="button">加注</button>
-        <button id="btnAllIn" type="button">All-in</button>
+        <div class="action-row action-row--main">
+          <button id="btnCheck" type="button">过牌</button>
+          <button id="btnCall" type="button">跟注</button>
+          <button id="btnBet" type="button">下注</button>
+          <button id="btnRaise" type="button">加注</button>
+        </div>
+        <div class="action-row action-row--secondary">
+          <button id="btnAmountToggle" type="button" class="btn-secondary">调整金额</button>
+          <button id="btnFold" type="button" class="btn-secondary">弃牌</button>
+          <button id="btnAllIn" type="button" class="btn-danger">全下</button>
+        </div>
       </div>
       <div id="allInConfirm" class="all-in-confirm" hidden>
-        <strong>确认 All-in？</strong>
+        <strong>确认全下？</strong>
         <span id="allInConfirmText">你将投入全部筹码</span>
         <div class="all-in-confirm-actions">
           <button id="btnCancelAllIn" type="button" class="btn-secondary">取消</button>
-          <button id="btnConfirmAllIn" type="button" class="btn-danger">确认 All-in</button>
+          <button id="btnConfirmAllIn" type="button" class="btn-danger">确认全下</button>
         </div>
       </div>
     </div>

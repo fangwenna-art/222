@@ -982,7 +982,17 @@ body.room-active .poker-table {
 .bottom-dock .action-bar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+}
+
+.action-hint {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  text-align: center;
 }
 
 .bet-controls {
@@ -990,8 +1000,8 @@ body.room-active .poker-table {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 6px;
-  padding: 6px;
-  border-radius: 10px;
+  padding: 7px;
+  border-radius: 12px;
   background: #0f172a;
   border: 1px solid #334155;
 }
@@ -1005,9 +1015,9 @@ body.room-active .poker-table {
 
 .bet-controls input {
   margin-bottom: 0;
-  min-height: 38px;
+  min-height: 40px;
   padding: 8px 10px;
-  font-size: 0.9375rem;
+  font-size: 1rem;
 }
 
 .quick-bets {
@@ -1018,8 +1028,20 @@ body.room-active .poker-table {
 
 .action-buttons {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+}
+
+.action-row {
+  display: grid;
+  gap: 6px;
+}
+
+.action-row--main {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.action-row--secondary {
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
 }
 
 .quick-bets button {
@@ -1042,12 +1064,23 @@ body.room-active .poker-table {
   display: none;
 }
 
+.action-row:empty {
+  display: none;
+}
+
+.bottom-dock .action-row--main button {
+  background: #22c55e;
+  color: #052e16;
+  font-weight: 900;
+}
+
 .bottom-dock .btn-danger {
   background: #ef4444 !important;
   color: #fff !important;
 }
 
-.bottom-dock #btnRaise {
+.bottom-dock #btnRaise,
+.bottom-dock #btnBet {
   background: #38bdf8;
   color: #0f172a;
 }
