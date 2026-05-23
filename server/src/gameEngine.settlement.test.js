@@ -17,6 +17,22 @@ function makeEngine() {
 }
 
 {
+  const engine = new GameEngine('BIGBLIND_OPTION', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+    ['C', { name: 'C' }],
+  ]);
+  engine.startHand();
+  let result = engine.applyAction('A', 'call');
+  assert(result.ok, 'UTG/button should be able to call preflop');
+  result = engine.applyAction('B', 'call');
+  assert(result.ok, 'small blind should be able to complete preflop');
+  const state = engine.toPublicState('C');
+  assert(state.availableActions.canCheck, 'big blind should be able to check when no raise preflop');
+  assert(state.availableActions.canRaise, 'big blind should also be able to raise when action returns unopened');
+}
+
+{
   const engine = makeEngine();
   engine.phase = 'river';
   engine.community = [card(2, 'c'), card(7, 'd'), card(9, 'h'), card(11, 's'), card(13, 'c')];

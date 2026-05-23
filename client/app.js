@@ -188,6 +188,18 @@ function renderCards(container, cards) {
   }
 }
 
+function cardHtml(label) {
+  const classes = ['card-chip'];
+  if (label === '🂠') classes.push('card-chip--back');
+  if (/[♥♦]/.test(label || '')) classes.push('card-chip--red');
+  return `<span class="${classes.join(' ')}">${label || '🂠'}</span>`;
+}
+
+function seatCardsHtml(cards) {
+  if (!cards?.length) return '';
+  return `<div class="seat-cards">${cards.map(cardHtml).join('')}</div>`;
+}
+
 function setDockVisible(visible) {
   els.bottomDock.hidden = !visible;
   document.body.classList.toggle('has-dock', visible);
@@ -381,6 +393,7 @@ function renderGameState(gameState) {
         ${seat.allIn ? '<span class="tag">All-in</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
+      ${seatCardsHtml(seat.holeCards)}
       ${seat.bet > 0 ? `<div class="bet-stack">${seat.bet}</div>` : ''}
     `;
     els.seatList.appendChild(li);

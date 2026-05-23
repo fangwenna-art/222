@@ -556,7 +556,7 @@ export class GameEngine {
       canCheck: canAct && toCall === 0,
       canBet: canAct && toCall === 0 && this.currentBet === 0 && seat.chips >= minBet,
       canCall: canAct && toCall > 0,
-      canRaise: canAct && toCall > 0 && seat.chips >= toCall + minRaise,
+      canRaise: canAct && this.currentBet > 0 && seat.chips >= toCall + minRaise,
       canAllIn: canAct && seat.chips > 0,
     };
   }
