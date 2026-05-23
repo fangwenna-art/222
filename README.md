@@ -17,6 +17,7 @@
 - 局结束：桌心一行摘要 + 延迟展开结果面板（结算明细与亮牌）
 - 房间保留最近 10 局摘要（「最近局数」列表）
 - 房间内筹码统计：每局净盈亏、胜局/局数、当前筹码（房主局间改起始筹码时清零）
+- 可执行规范 + 状态映射（`spec/`）：阶段、UI 模式、Socket 与时序的 SSOT
 - 房主可在局间配置起始筹码与小盲 / 大盲（`room:settings`，下一局生效）
 
 ## 目录结构
@@ -25,6 +26,9 @@
 texas-holdem/
 ├── package.json              # 根入口：npm start / npm test / npm run local
 ├── dev-local.sh              # 本地一键测试 + 热重载
+├── spec/                     # 可执行规范（phases / ui-modes / timing / socket-events）
+├── scripts/
+│   └── build-client-spec.mjs # 生成 client/spec.js
 ├── server/
 │   ├── package.json
 │   └── src/
@@ -34,9 +38,11 @@ texas-holdem/
 │       ├── handEvaluator.js      # 牌型判断
 │       ├── handEvaluator.test.js
 │       ├── gameEngine.settlement.test.js
-│       └── roomManager.test.js
+│       ├── roomManager.test.js
+│       └── spec.test.js
 └── client/
     ├── index.html
+    ├── spec.js                 # 由 spec:build 生成（勿手改）
     ├── app.js                    # UI、结果面板、桌心摘要
     └── style.css
 ```
@@ -102,6 +108,21 @@ npm test
 | `npm run test:evaluator` | 牌型判断（高牌 → 同花顺） |
 | `npm run test:settlement` | 引擎结算：边池、摊牌节奏、弃牌胜日志 |
 | `npm run test:room` | 房间控制：房主、行动超时、摊牌定时器、牌局历史 |
+| `npm run test:spec` | 规范与 UI 状态映射一致性 |
+| `npm run spec:build` | 根据 `spec/` 重新生成 `client/spec.js` |
+
+## 可执行规范与状态映射
+
+规范目录见 [`spec/README.md`](spec/README.md)。
+
+| 概念 | 服务端 | 客户端 |
+|------|--------|--------|
+| **Hand 阶段** | `engine.phase`（`phases.json`） | `gameState.hand.phase` |
+| **房间大厅** | `hand: null` | UI 模式 `room_lobby`，伪阶段 `lobby` |
+| **UI 模式** | — | `TexasHoldemSpec.resolveUiMode(gameState)` |
+| **设置模式** | `canEditSettings` | `edit` / `locked` / `readonly` |
+
+调试时可在控制台查看 `window.__uiState`（当前解析出的 UI 模式与 flags）。
 
 ## 结算与 UI 说明
 

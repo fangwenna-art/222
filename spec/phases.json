@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "handPhases": [
+    {
+      "id": "waiting",
+      "label": "等待开始",
+      "inHand": false,
+      "gates": { "canStart": true, "canConfigureRoom": true, "canAct": false }
+    },
+    {
+      "id": "preflop",
+      "label": "翻牌前",
+      "inHand": true,
+      "gates": { "canStart": false, "canConfigureRoom": false, "canAct": true }
+    },
+    {
+      "id": "flop",
+      "label": "翻牌",
+      "inHand": true,
+      "gates": { "canStart": false, "canConfigureRoom": false, "canAct": true }
+    },
+    {
+      "id": "turn",
+      "label": "转牌",
+      "inHand": true,
+      "gates": { "canStart": false, "canConfigureRoom": false, "canAct": true }
+    },
+    {
+      "id": "river",
+      "label": "河牌",
+      "inHand": true,
+      "gates": { "canStart": false, "canConfigureRoom": false, "canAct": true }
+    },
+    {
+      "id": "showdown",
+      "label": "摊牌",
+      "inHand": false,
+      "gates": { "canStart": false, "canConfigureRoom": true, "canAct": false },
+      "notes": "showdownPending：底池尚未结算，RoomManager 定时 finalizeShowdown"
+    },
+    {
+      "id": "ended",
+      "label": "局结束",
+      "inHand": false,
+      "gates": { "canStart": true, "canConfigureRoom": true, "canAct": false }
+    }
+  ],
+  "roomContexts": [
+    {
+      "id": "no_engine",
+      "label": "房间大厅",
+      "handNull": true,
+      "description": "engine 未创建；客户端 handPhase 伪值为 lobby"
+    },
+    {
+      "id": "engine_waiting",
+      "handPhase": "waiting",
+      "description": "引擎初始态；生产环境少见，startHand 后直接进入 preflop"
+    },
+    {
+      "id": "engine_ended",
+      "handPhase": "ended",
+      "description": "局间；可开始新一局"
+    }
+  ],
+  "transitions": [
+    { "from": "no_engine", "event": "game:start", "to": "preflop" },
+    { "from": "waiting", "event": "startHand", "to": "preflop" },
+    { "from": "preflop", "event": "roundComplete", "to": "flop" },
+    { "from": "flop", "event": "roundComplete", "to": "turn" },
+    { "from": "turn", "event": "roundComplete", "to": "river" },
+    { "from": "river", "event": "roundComplete", "to": "showdown" },
+    { "from": "preflop", "event": "foldWin", "to": "ended" },
+    { "from": "flop", "event": "foldWin", "to": "ended" },
+    { "from": "turn", "event": "foldWin", "to": "ended" },
+    { "from": "river", "event": "foldWin", "to": "ended" },
+    { "from": "showdown", "event": "finalizeShowdown", "to": "ended" },
+    { "from": "ended", "event": "game:start", "to": "preflop" }
+  ]
+}

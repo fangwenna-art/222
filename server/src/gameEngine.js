@@ -1,4 +1,5 @@
 import { bestHandScore, compareScore, scoreToHandName } from './handEvaluator.js';
+import { getHandPhaseIds, loadSpec } from '../../spec/loadSpec.mjs';
 
 const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 const SUITS = ['s', 'h', 'd', 'c'];
@@ -14,7 +15,7 @@ export const DEFAULT_GAME_SETTINGS = {
   bigBlind: BIG_BLIND,
 };
 
-const PHASES = ['waiting', 'preflop', 'flop', 'turn', 'river', 'showdown', 'ended'];
+const PHASES = getHandPhaseIds(loadSpec().phases);
 
 function cardLabel(card) {
   const r = RANK_LABEL[card.rank] ?? String(card.rank);

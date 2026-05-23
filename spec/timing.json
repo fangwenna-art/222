@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "constants": {
+    "SHOWDOWN_PAUSE_MS": {
+      "default": 1800,
+      "env": "SHOWDOWN_PAUSE_MS",
+      "owner": "server",
+      "description": "摊牌亮牌停留后再 finalizeShowdown"
+    },
+    "RESULT_PANEL_DELAY_MS": {
+      "default": 3000,
+      "owner": "client",
+      "description": "ended 阶段延迟展开结果面板"
+    },
+    "ACTION_TIMEOUT_MS": {
+      "default": 30000,
+      "env": "ACTION_TIMEOUT_MS",
+      "owner": "server"
+    },
+    "OFFLINE_AUTO_FOLD_MS": {
+      "default": 30000,
+      "env": "OFFLINE_AUTO_FOLD_MS",
+      "owner": "server"
+    }
+  }
+}

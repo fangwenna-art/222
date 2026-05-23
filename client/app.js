@@ -23,15 +23,11 @@ function resolveServerUrl() {
 const SERVER_URL = resolveServerUrl();
 const SESSION_KEY = 'texas-holdem-session';
 const PROFILE_KEY = 'texas-holdem-player-name';
-const PHASE_LABEL = {
-  waiting: '等待开始',
-  preflop: '翻牌前',
-  flop: '翻牌',
-  turn: '转牌',
-  river: '河牌',
-  showdown: '摊牌',
-  ended: '局结束',
-};
+const Spec = window.TexasHoldemSpec;
+const PHASE_LABEL = Spec.PHASE_LABEL;
+const IN_HAND_PHASES = Spec.IN_HAND_PHASES;
+const SETTINGS_MODE = Spec.SETTINGS_MODE;
+const RESULT_PANEL_DELAY_MS = Spec.RESULT_PANEL_DELAY_MS;
 
 const $ = (id) => document.getElementById(id);
 
@@ -146,24 +142,24 @@ let sessionResuming = false;
 let resumeNoticeUntil = 0;
 let socketConnected = false;
 
-const IN_HAND_PHASES = new Set(['preflop', 'flop', 'turn', 'river']);
-const SETTINGS_MOBILE_MQL = window.matchMedia('(max-width: 520px)');
+let resultPanelRevealTimer = null;
+let resultPanelDelayUntil = 0;
 
-const SETTINGS_MODE = {
-  EDIT: 'edit',
-  LOCKED: 'locked',
-  READONLY: 'readonly',
-};
+function resolveUiState(gameState, screen = 'room') {
+  return Spec.resolveUiMode(gameState, { screen, viewerPlayerId: myPlayerId });
+}
+
+function isHandInProgress(hand) {
+  return Spec.isInHandPhase(hand?.phase);
+}
+
+const SETTINGS_MOBILE_MQL = window.matchMedia('(max-width: 520px)');
 
 const SETTINGS_LIMITS = {
   startingChips: { min: 100, max: 100000 },
   smallBlind: { min: 1, max: 5000 },
   bigBlind: { min: 2, max: 10000 },
 };
-let resultPanelRevealTimer = null;
-let resultPanelDelayUntil = 0;
-
-const RESULT_PANEL_DELAY_MS = 3000;
 
 function clearResultPanelRevealTimer() {
   if (resultPanelRevealTimer) {
@@ -420,10 +416,6 @@ function buildWinnerRow(winner, seat, className, includeCards = false) {
     ${includeCards ? winnerCardsHtml(seat?.holeCards) : ''}
   `;
   return li;
-}
-
-function isHandInProgress(hand) {
-  return Boolean(hand && hand.phase !== 'waiting' && hand.phase !== 'ended' && hand.phase !== 'showdown');
 }
 
 function renderResultSummary(hand) {
@@ -732,9 +724,7 @@ function settingsSnapshot(settings) {
 }
 
 function isSettingsEditable(gameState, hand) {
-  if (typeof gameState?.canEditSettings === 'boolean') return gameState.canEditSettings;
-  if (!hand) return true;
-  return hand.phase === 'waiting' || hand.phase === 'ended' || hand.phase === 'showdown';
+  return Spec.isSettingsEditable(gameState, hand);
 }
 
 function readSettingsDraft() {
@@ -746,9 +736,7 @@ function readSettingsDraft() {
 }
 
 function getSettingsInteractionMode(gameState, hand) {
-  if (!isRoomHost(gameState)) return SETTINGS_MODE.READONLY;
-  if (isSettingsEditable(gameState, hand)) return SETTINGS_MODE.EDIT;
-  return SETTINGS_MODE.LOCKED;
+  return Spec.resolveSettingsMode(gameState, hand, myPlayerId);
 }
 
 function validateSettingsDraft(draft) {
@@ -825,7 +813,7 @@ function isSettingsMobileViewport() {
 }
 
 function getSettingsHandPhase(hand) {
-  return hand?.phase ?? 'lobby';
+  return Spec.getSettingsHandPhase(hand);
 }
 
 function resolveSettingsExpanded({ mode, hand, dirty, hasValidationError, isMobile, isFirstLobby }) {
@@ -1136,7 +1124,9 @@ function renderGameState(gameState) {
   els.roomId.value = gameState.roomId;
 
   const { players, hand } = gameState;
+  const uiState = resolveUiState(gameState);
   window.__lastHandState = hand;
+  window.__uiState = uiState;
 
   if ((gameState.handHistory?.length ?? 0) > 0) {
     settingsEverSaved = true;
@@ -1152,7 +1142,7 @@ function renderGameState(gameState) {
   renderRoomSettings(gameState, hand);
 
   if (!hand) {
-    els.gamePhase.textContent = '大厅';
+    els.gamePhase.textContent = uiState.phaseLabel;
     els.tablePotLabel.textContent = '底池';
     els.gamePot.textContent = '0';
     els.gameMessage.textContent = '至少 2 人可开始新一局';
@@ -1206,10 +1196,10 @@ function renderGameState(gameState) {
     syncDockVisibility();
     return;
   }
-  els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
-  els.gamePhase.classList.toggle('is-showdown', hand.phase === 'showdown');
-  const isEnded = hand.phase === 'ended';
-  const isShowdown = hand.phase === 'showdown';
+  els.gamePhase.textContent = uiState.phaseLabel || PHASE_LABEL[hand.phase] || hand.phase;
+  els.gamePhase.classList.toggle('is-showdown', uiState.isShowdown);
+  const isEnded = uiState.isEnded;
+  const isShowdown = uiState.isShowdown;
   els.tablePotLabel.textContent = isEnded ? '本局结束' : '底池';
   els.gamePot.textContent = isEnded ? '' : String(hand.pot);
   els.gameMessage.textContent = shortTableMessage(hand);
@@ -1275,7 +1265,7 @@ function renderGameState(gameState) {
 
   renderResultPanel(hand);
 
-  const inHand = isHandInProgress(hand);
+  const inHand = uiState.inHand;
   const eligibleCount = countStartEligiblePlayers(players);
   const canStartNew = hand.canStart && eligibleCount >= 2 && !inHand;
   const isHost = isRoomHost(gameState);

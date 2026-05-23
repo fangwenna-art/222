@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "screens": ["entry", "room"],
+  "settingsModes": ["edit", "locked", "readonly"],
+  "modes": [
+    {
+      "id": "entry",
+      "screen": "entry",
+      "label": "进入牌桌前",
+      "flags": {
+        "showRoomPanel": false,
+        "showLobbyCard": true,
+        "showActionBar": false,
+        "showStartButton": false,
+        "showResultPanel": false,
+        "showTableSeatsAsLobby": false
+      }
+    },
+    {
+      "id": "room_lobby",
+      "screen": "room",
+      "label": "房间大厅",
+      "match": { "handNull": true },
+      "flags": {
+        "showRoomPanel": true,
+        "showLobbyCard": false,
+        "showActionBar": false,
+        "showStartButton": true,
+        "showResultPanel": false,
+        "showTableSeatsAsLobby": true,
+        "phaseLabel": "大厅"
+      }
+    },
+    {
+      "id": "room_in_hand",
+      "screen": "room",
+      "label": "局内",
+      "match": { "inHand": true },
+      "flags": {
+        "showRoomPanel": true,
+        "showLobbyCard": false,
+        "showActionBar": true,
+        "showStartButton": false,
+        "showResultPanel": false,
+        "showTableSeatsAsLobby": false
+      }
+    },
+    {
+      "id": "room_showdown",
+      "screen": "room",
+      "label": "摊牌亮牌",
+      "match": { "handPhase": "showdown" },
+      "flags": {
+        "showRoomPanel": true,
+        "showLobbyCard": false,
+        "showActionBar": false,
+        "showStartButton": false,
+        "showResultPanel": false,
+        "showTableSeatsAsLobby": false,
+        "revealHoleCards": true
+      }
+    },
+    {
+      "id": "room_ended",
+      "screen": "room",
+      "label": "局结束",
+      "match": { "handPhase": "ended" },
+      "flags": {
+        "showRoomPanel": true,
+        "showLobbyCard": false,
+        "showActionBar": false,
+        "showStartButton": true,
+        "showResultPanel": true,
+        "showTableSeatsAsLobby": false,
+        "delayResultPanelMs": 3000
+      }
+    }
+  ]
+}

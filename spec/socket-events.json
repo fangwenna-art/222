@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "events": [
+    {
+      "direction": "C→S",
+      "name": "room:create",
+      "payload": { "playerName": "string" },
+      "ack": { "ok": true, "session": "object", "gameState": "GameState" }
+    },
+    {
+      "direction": "C→S",
+      "name": "room:join",
+      "payload": { "roomId": "string", "playerName": "string" },
+      "ack": { "ok": true, "session": "object", "gameState": "GameState" }
+    },
+    {
+      "direction": "C→S",
+      "name": "room:resume",
+      "payload": { "roomId": "string", "playerId": "string", "token": "string" },
+      "ackOk": { "ok": true, "session": "object", "gameState": "GameState" },
+      "ackErrorCodes": ["ROOM_NOT_FOUND", "SESSION_INVALID", "PLAYER_NOT_FOUND"]
+    },
+    {
+      "direction": "C→S",
+      "name": "room:leave",
+      "payload": {},
+      "ack": { "ok": true }
+    },
+    {
+      "direction": "C→S",
+      "name": "room:settings",
+      "payload": { "startingChips?": "number", "smallBlind?": "number", "bigBlind?": "number" },
+      "ack": { "ok": true, "settings?": "RoomSettings", "gameState?": "GameState" }
+    },
+    {
+      "direction": "C→S",
+      "name": "game:start",
+      "payload": {},
+      "ack": { "ok": true, "gameState?": "GameState" }
+    },
+    {
+      "direction": "C→S",
+      "name": "game:action",
+      "payload": { "action": "fold|check|call|bet|raise|allin", "amount?": "number" },
+      "ack": { "ok": true }
+    },
+    {
+      "direction": "S→C",
+      "name": "gameState",
+      "payload": "GameState"
+    }
+  ]
+}
