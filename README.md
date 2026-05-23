@@ -4,37 +4,41 @@
 
 ## 功能
 
-- 创建房间 / 加入房间
-- 玩家进入、退出、断线重连
-- 服务端广播 `gameState`
-- 简化德州扑克流程：`preflop → flop → turn → river → showdown`
-- 每人 2 张手牌，5 张公共牌
-- 支持 `fold / call / raise`
+- 创建房间 / 加入房间（最多 9 人）
+- 玩家进入、退出、断线重连（`room:resume` + localStorage）
+- 服务端广播 `gameState`，前端只渲染状态
+- 简化德州扑克流程：`preflop → flop → turn → river → showdown → ended`
+- 摊牌节奏：先亮牌停留约 1.8s，再结算进入 `ended`
+- 弃牌胜与摊牌结算统一为 `settle` 日志格式（主池 / 边池）
 - 标准牌型判断：高牌、一对、两对、三条、顺子、同花、葫芦、四条、同花顺
-- 前端只渲染状态，不保存游戏逻辑
+- 底部固定操作栏（过牌 / 跟注 / 下注 / 加注 / 弃牌 / 全下）
+- 局结束：桌心一行摘要 + 延迟展开结果面板（结算明细与亮牌）
 
 ## 目录结构
 
 ```text
 texas-holdem/
-├── package.json              # 部署入口：npm start
+├── package.json              # 根入口：npm start / npm test / npm run local
+├── dev-local.sh              # 本地一键测试 + 热重载
 ├── server/
 │   ├── package.json
-│   ├── package-lock.json
 │   └── src/
-│       ├── index.js          # Express + Socket.IO + 静态前端托管
-│       ├── gameEngine.js     # 简化德州扑克引擎
-│       ├── handEvaluator.js  # 标准牌型判断
-│       └── handEvaluator.test.js
+│       ├── index.js              # Express + Socket.IO + 静态前端托管
+│       ├── roomManager.js        # 房间、定时器、摊牌延迟结算
+│       ├── gameEngine.js         # 德州扑克引擎
+│       ├── handEvaluator.js      # 牌型判断
+│       ├── handEvaluator.test.js
+│       ├── gameEngine.settlement.test.js
+│       └── roomManager.test.js
 └── client/
     ├── index.html
-    ├── app.js
+    ├── app.js                    # UI、结果面板、桌心摘要
     └── style.css
 ```
 
 ## 本地启动
 
-推荐从根目录启动，前端和后端会由同一个 Node 服务提供：
+### 推荐：一体服务（前端 + Socket 同源）
 
 ```bash
 cd texas-holdem
@@ -42,29 +46,101 @@ npm install
 npm start
 ```
 
-默认访问：
+默认访问：**http://localhost:3001**
 
-```text
-http://localhost:3001
+健康检查：
+
+```bash
+curl http://localhost:3001/health
 ```
 
-如果你想使用之前的本地端口：
+### 推荐：本地开发（含测试 + 热重载）
+
+```bash
+npm run local
+```
+
+脚本会依次执行 `npm install` → `npm test` → 启动带 `--watch` 的服务。改 `server/src` 下代码会自动重启。
+
+多人测试：再开一个无痕窗口，加入同一房间号即可。
+
+### 其他端口
 
 ```bash
 PORT=3010 npm start
 ```
 
-访问：
+访问 **http://localhost:3010**（Socket 与页面仍同源）。
 
-```text
-http://localhost:3010
-```
+### 分离静态页开发（可选）
 
-健康检查：
+若用 `5188` / `5173` 跑静态页，Socket 默认连 `3010`：
 
 ```bash
-curl http://localhost:3010/health
+# 终端 1
+PORT=3010 npm start
+
+# 终端 2（client 目录）
+python3 -m http.server 5188
 ```
+
+## 测试
+
+```bash
+npm test
+```
+
+包含：
+
+| 命令 | 说明 |
+|------|------|
+| `npm run test:evaluator` | 牌型判断（高牌 → 同花顺） |
+| `npm run test:settlement` | 引擎结算：边池、摊牌节奏、弃牌胜日志 |
+| `node server/src/roomManager.test.js` | 房间控制：房主、行动超时、摊牌定时器 |
+
+## 结算与 UI 说明
+
+### 牌局阶段
+
+| 阶段 | 桌心 | 结果面板 |
+|------|------|----------|
+| 进行中 | `轮到 XX` / 阶段名 | 隐藏 |
+| `showdown` | `亮牌 · A 一对 · B 高牌` + 倒计时 | 隐藏（只看牌桌亮牌） |
+| `ended` | 一行摘要，如 `Alice 获胜 +150 · 一对` | 延迟约 600ms 后展开，含结算行与本局明细 |
+
+### 日志格式（结果面板「本局明细」）
+
+摊牌示例：
+
+```text
+摊牌 · 开始摊牌
+摊牌 · 主池 300 · A +150(一对) · B +150(一对) · 平分
+```
+
+弃牌胜示例（与摊牌同为 `settle` 格式）：
+
+```text
+局结束 · 主池 50 · Alice +50(对手弃牌)
+```
+
+### 开始新一局
+
+- 仅**房主**可点「开始新一局」
+- 需要至少 **2 名在线玩家**
+- 若卡在摊牌阶段，服务端会自动补结算后再允许开局
+
+## 环境变量
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `PORT` | `3001` | 服务端口 |
+| `HOST` | `0.0.0.0` | 监听地址 |
+| `CLIENT_ORIGIN` | 含 `localhost:3001` 等 | CORS 允许的来源，逗号分隔 |
+| `ALLOW_LAN` | `true` | 是否允许局域网 IP 访问 |
+| `ACTION_TIMEOUT_MS` | `30000` | 行动超时（自动过牌 / 弃牌） |
+| `SHOWDOWN_PAUSE_MS` | `1800` | 摊牌亮牌停留时间（毫秒） |
+| `OFFLINE_AUTO_FOLD_MS` | `30000` | 离线自动弃牌 |
+| `MAX_PLAYERS_PER_ROOM` | `9` | 每房人数上限 |
 
 ## 部署到 Railway
 
@@ -125,12 +201,15 @@ https://your-domain.com/socket.io/
 | C→S | `room:create` | 创建房间并加入 |
 | C→S | `room:join` | 加入已有房间 |
 | C→S | `room:resume` | 断线后恢复身份与状态 |
-| C→S | `game:start` | 开始新一局 |
-| C→S | `game:action` | `{ action: 'fold' \| 'call' \| 'raise' }` |
+| C→S | `room:leave` | 离开房间 |
+| C→S | `game:start` | 开始新一局（房主） |
+| C→S | `game:action` | `{ action, amount? }` — fold / check / call / bet / raise / allin |
 | S→C | `gameState` | 广播完整状态 |
 
-## 测试牌型判断
+## 手动指定 Socket 地址
 
-```bash
-npm run test:evaluator
+页面 URL 加参数可覆盖自动检测：
+
+```text
+http://localhost:3001?server=http://localhost:3001
 ```
