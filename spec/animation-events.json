@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "events": [
+    "deal_cards",
+    "chip_move",
+    "player_turn_change",
+    "player_raise",
+    "player_call",
+    "player_fold"
+  ],
+  "rulesSource": "client/animation/animationRules.js",
+  "bridgeSource": "client/animation/gameStateBridge.js",
+  "orchestration": [
+    "GameStateAnimationBridge.process(prev, next) → emit",
+    "renderGameState(next)",
+    "AnimationLayer.syncToDom()"
+  ]
+}

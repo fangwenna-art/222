@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>德州扑克 · 房间大厅</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="animation.css" />
 </head>
 <body>
   <div class="app">
@@ -119,6 +120,9 @@
           <div id="communityCards" class="cards-row community-cards"></div>
           <div class="table-message" id="tableMessage">—</div>
         </div>
+        <div id="animationLayer" class="animation-layer" aria-hidden="true">
+          <div class="animation-layer__deck"></div>
+        </div>
       </div>
 
       <div id="mySeatPanel" class="my-seat-panel" hidden>
@@ -186,6 +190,11 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="spec.js"></script>
+  <script src="animation/animationEvents.js"></script>
+  <script src="animation/animationRules.js"></script>
+  <script src="animation/animationLayer.js"></script>
+  <script src="animation/gameStateBridge.js"></script>
+  <script src="animation/index.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

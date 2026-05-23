@@ -1,0 +1,112 @@
+/* Animation Layer — 独立于 UI 的事件驱动动效 */
+
+.animation-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 20;
+}
+
+.animation-layer__deck {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: 36px;
+  height: 48px;
+  transform: translate(-50%, -50%);
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    45deg,
+    #1d4ed8,
+    #1d4ed8 4px,
+    #2563eb 4px,
+    #2563eb 8px
+  );
+  border: 1px solid #93c5fd;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+  opacity: 0.85;
+}
+
+.animation-token {
+  position: fixed;
+  z-index: 600;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.animation-token--card {
+  width: 28px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    45deg,
+    #1d4ed8,
+    #1d4ed8 3px,
+    #2563eb 3px,
+    #2563eb 6px
+  );
+  border: 1px solid #93c5fd;
+  color: transparent;
+  font-size: 0.75rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.animation-token--chip {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  color: #422006;
+  border: 1px solid #92400e;
+  font-size: 0.625rem;
+  font-weight: 900;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.seat-item.anim-turn-active {
+  z-index: 6;
+}
+
+.seat-item.anim-bet-bounce .bet-stack,
+.seat-item.anim-bet-bounce {
+  animation: anim-bet-bounce var(--anim-duration, 320ms) var(--anim-easing, ease-out);
+}
+
+@keyframes anim-bet-bounce {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-6px) scale(1.08); }
+  70% { transform: translateY(2px) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.table-seats .seat-pos-0.anim-bet-bounce {
+  animation: anim-bet-bounce-center var(--anim-duration, 320ms) var(--anim-easing, ease-out);
+}
+
+@keyframes anim-bet-bounce-center {
+  0% { transform: translateX(-50%) translateY(0) scale(1); }
+  35% { transform: translateX(-50%) translateY(-6px) scale(1.08); }
+  70% { transform: translateX(-50%) translateY(2px) scale(0.98); }
+  100% { transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+.seat-item.anim-fold {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-layer {
+    display: none;
+  }
+
+  .seat-item.anim-bet-bounce,
+  .seat-item.anim-bet-bounce .bet-stack {
+    animation: none !important;
+  }
+}

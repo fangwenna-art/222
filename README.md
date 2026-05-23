@@ -18,6 +18,7 @@
 - 房间保留最近 10 局摘要（「最近局数」列表）
 - 房间内筹码统计：每局净盈亏、胜局/局数、当前筹码（房主局间改起始筹码时清零）
 - 可执行规范 + 状态映射（`spec/`）：阶段、UI 模式、Socket 与时序的 SSOT
+- 独立 Animation Layer：gameState 差分驱动 `emit`，UI 与动效完全解耦
 - 房主可在局间配置起始筹码与小盲 / 大盲（`room:settings`，下一局生效）
 
 ## 目录结构
@@ -123,6 +124,18 @@ npm test
 | **设置模式** | `canEditSettings` | `edit` / `locked` / `readonly` |
 
 调试时可在控制台查看 `window.__uiState`（当前解析出的 UI 模式与 flags）。
+
+## Animation Layer
+
+动效系统见 [`client/animation/README.md`](client/animation/README.md)。
+
+- **唯一入口**：`TexasHoldemAnimation.getBus().emit(eventName, payload)`（由 `GameStateAnimationBridge` 调用）
+- **UI 禁止**在 `renderGameState` 内触发动画
+- **编排**：`onGameStateReceived` → bridge → render → `syncToDom()`
+
+```bash
+npm run test:animation
+```
 
 ## 结算与 UI 说明
 

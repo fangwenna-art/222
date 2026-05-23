@@ -28,6 +28,8 @@ const PHASE_LABEL = Spec.PHASE_LABEL;
 const IN_HAND_PHASES = Spec.IN_HAND_PHASES;
 const SETTINGS_MODE = Spec.SETTINGS_MODE;
 const RESULT_PANEL_DELAY_MS = Spec.RESULT_PANEL_DELAY_MS;
+const Animation = window.TexasHoldemAnimation;
+Animation.create();
 
 const $ = (id) => document.getElementById(id);
 
@@ -1114,6 +1116,7 @@ function renderChipStats(entries) {
   });
 }
 
+/** 仅渲染服务端 gameState（禁止在此触发动画） */
 function renderGameState(gameState) {
   if (!gameState) return;
   window.__lastGameState = gameState;
@@ -1159,6 +1162,7 @@ function renderGameState(gameState) {
     tablePlayers.forEach((p, index) => {
       const li = document.createElement('li');
       li.className = `seat-item seat-item--lobby ${tableSeatClass(index, tablePlayers.length)}`;
+      li.dataset.seatId = p.id;
       if (p.id === myPlayerId) li.classList.add('is-me');
       li.innerHTML = `
         <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(p)}</div>
@@ -1228,6 +1232,7 @@ function renderGameState(gameState) {
   tableSeats.forEach((seat, index) => {
     const li = document.createElement('li');
     li.className = `seat-item ${tableSeatClass(index, tableSeats.length)}`;
+    li.dataset.seatId = seat.id;
     if (seat.id === myPlayerId) li.classList.add('is-me');
     if (seat.id === hand.activePlayerId) li.classList.add('is-active');
     if (seat.folded) li.classList.add('is-folded');
@@ -1350,6 +1355,12 @@ function renderGameState(gameState) {
   syncDockVisibility();
 }
 
+/** 事件驱动：bridge diff → render → animation flush */
+function onGameStateReceived(gameState) {
+  const prevState = window.__lastGameState || null;
+  Animation.orchestrateStateUpdate(prevState, gameState, renderGameState);
+}
+
 function clearRoomView() {
   betPanelOpen = false;
   resetResultPanelTiming();
@@ -1361,6 +1372,10 @@ function clearRoomView() {
   settingsEverSaved = false;
   lastSyncedSettingsSnap = '';
   roomSettingsEditing = false;
+  Animation.getBridge()?.reset();
+  Animation.getLayer()?.reset();
+  window.__lastGameState = null;
+  window.__uiState = null;
   if (els.roomSettingsBox) els.roomSettingsBox.hidden = true;
   document.body.classList.remove('bet-panel-open');
   setEntryMode();
@@ -1390,7 +1405,7 @@ socket.on('connect', () => {
       }
       rememberSession(res);
       resumeNoticeUntil = Date.now() + 4000;
-      renderGameState(res.gameState);
+      onGameStateReceived(res.gameState);
       setMessage(`已恢复房间 ${res.gameState.roomId}`, 'success');
     });
     return;
@@ -1415,7 +1430,7 @@ socket.on('connect_error', (err) => {
   setLobbyButtonsEnabled(false);
 });
 
-socket.on('gameState', renderGameState);
+socket.on('gameState', onGameStateReceived);
 
 function getPlayerName() {
   const name = els.playerName.value.trim();
@@ -1440,7 +1455,7 @@ els.btnCreate.addEventListener('click', () => {
       return;
     }
     rememberSession(res);
-    renderGameState(res.gameState);
+    onGameStateReceived(res.gameState);
     setMessage(`房间 ${res.gameState.roomId} 创建成功`, 'success');
   });
 });
@@ -1467,7 +1482,7 @@ els.btnJoin.addEventListener('click', () => {
       return;
     }
     rememberSession(res);
-    renderGameState(res.gameState);
+    onGameStateReceived(res.gameState);
     setMessage(`已加入房间 ${res.gameState.roomId}`, 'success');
   });
 });
@@ -1497,7 +1512,7 @@ function saveRoomSettings() {
     settingsEverSaved = true;
     settingsExpandedManual = false;
     lastSyncedSettingsSnap = settingsSnapshot(res.settings || res.gameState?.roomSettings);
-    renderGameState(res.gameState);
+    onGameStateReceived(res.gameState);
     showRoomNotice('盲注设置已保存，下一局生效', 'success');
   });
 }
@@ -1585,7 +1600,7 @@ els.btnStartHand.addEventListener('click', () => {
       if (window.__lastGameState) renderGameState(window.__lastGameState);
       return;
     }
-    renderGameState(res.gameState);
+    onGameStateReceived(res.gameState);
     showRoomNotice('新一局已开始', 'success');
   });
 });
@@ -1626,7 +1641,7 @@ function emitAction(action, amount) {
     betPanelOpen = false;
     els.allInConfirm.hidden = true;
     document.body.classList.remove('bet-panel-open');
-    renderGameState(res.gameState);
+    onGameStateReceived(res.gameState);
   });
 }
 

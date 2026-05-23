@@ -11,8 +11,9 @@
     "test:settlement": "node server/src/gameEngine.settlement.test.js",
     "test:room": "node server/src/roomManager.test.js",
     "test:spec": "node server/src/spec.test.js",
+    "test:animation": "node scripts/animation-bridge.test.mjs",
     "spec:build": "node scripts/build-client-spec.mjs",
-    "test": "npm run spec:build && npm run test:spec && npm run test:evaluator && npm run test:settlement && npm run test:room",
+    "test": "npm run spec:build && npm run test:spec && npm run test:animation && npm run test:evaluator && npm run test:settlement && npm run test:room",
     "postinstall": "npm --prefix server install"
   },
   "engines": {
