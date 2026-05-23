@@ -175,7 +175,10 @@ function scheduleResultPanelReveal() {
   resultPanelRevealTimer = setTimeout(() => {
     resultPanelRevealTimer = null;
     const hand = getCurrentHand();
-    if (hand?.phase === 'ended') renderResultPanel(hand);
+    if (hand?.phase === 'ended') {
+      renderResultPanel(hand);
+      maybeScrollResultIntoView();
+    }
   }, delay);
 }
 
@@ -771,7 +774,7 @@ function revertSettingsDraft() {
     els.roomSettingsError.textContent = '';
   }
   const mode = getSettingsInteractionMode(gameState, hand);
-  renderRoomSettingsMeta(mode, false);
+  renderRoomSettingsMeta(mode, false, hand);
   updateSettingsActionState(mode);
 }
 
@@ -798,10 +801,16 @@ function resolveSettingsExpanded({ mode, hand, dirty, hasValidationError, isMobi
   if (mode === SETTINGS_MODE.LOCKED || mode === SETTINGS_MODE.READONLY) return false;
 
   if (isFirstLobby) return !settingsEverSaved;
-  if (phase === 'ended') return true;
-  if (phase === 'showdown') return false;
+  if (phase === 'ended' || phase === 'showdown') return false;
   if (isMobile) return false;
   return false;
+}
+
+function maybeScrollResultIntoView() {
+  if (!els.resultPanel || els.resultPanel.hidden) return;
+  window.requestAnimationFrame(() => {
+    els.resultPanel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
 }
 
 function maybeScrollSettingsIntoView() {
@@ -831,6 +840,9 @@ function applySettingsExpansion(gameState, hand, mode, dirty, hasValidationError
   if (IN_HAND_PHASES.has(phase) && !IN_HAND_PHASES.has(prevPhase)) {
     settingsExpandedManual = false;
   }
+  if (phase === 'ended' && prevPhase !== 'ended' && !dirty && !hasValidationError) {
+    settingsExpandedManual = true;
+  }
 
   let nextExpanded;
   if (dirty || hasValidationError) {
@@ -854,8 +866,12 @@ function applySettingsExpansion(gameState, hand, mode, dirty, hasValidationError
   const wasCollapsed = !settingsPanelExpanded;
   setSettingsPanelExpanded(nextExpanded);
 
-  if (nextExpanded && wasCollapsed && (dirty || hasValidationError || (isFirstLobby && !settingsEverSaved) || phase === 'ended')) {
+  if (nextExpanded && wasCollapsed && (dirty || hasValidationError || (isFirstLobby && !settingsEverSaved))) {
     maybeScrollSettingsIntoView();
+  }
+
+  if (phase === 'ended' && prevPhase !== 'ended') {
+    maybeScrollResultIntoView();
   }
 
   lastSettingsMode = mode;
@@ -886,12 +902,16 @@ function updateSettingsActionState(mode) {
   if (els.btnPresetBlinds2550) els.btnPresetBlinds2550.disabled = mode !== SETTINGS_MODE.EDIT || settingsSavePending;
 }
 
-function renderRoomSettingsMeta(mode, dirty) {
+function renderRoomSettingsMeta(mode, dirty, hand) {
   const meta = {
     [SETTINGS_MODE.EDIT]: {
       status: dirty ? '未保存' : '可编辑',
       tone: dirty ? 'warn' : 'ok',
-      help: dirty ? '你有未保存的修改，保存后下一局开始时生效。' : '修改后点「保存设置」，下一局开始时生效。',
+      help: dirty
+        ? '你有未保存的修改，保存后下一局开始时生效。'
+        : hand?.phase === 'ended'
+          ? '本局已结束，请先查看下方对战结果；需要改盲注时再展开。'
+          : '修改后点「保存设置」，下一局开始时生效。',
     },
     [SETTINGS_MODE.LOCKED]: {
       status: '局内锁定',
@@ -1026,7 +1046,7 @@ function renderRoomSettings(gameState, hand) {
   if (els.roomSettingsForm) els.roomSettingsForm.hidden = !showForm;
   if (els.roomSettingsDisplay) els.roomSettingsDisplay.hidden = showForm;
 
-  renderRoomSettingsMeta(mode, dirty);
+  renderRoomSettingsMeta(mode, dirty, hand);
   updateSettingsActionState(mode);
 }
 
