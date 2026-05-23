@@ -55,6 +55,17 @@ manager.clearActionTimer(room);
 }
 
 {
+  const limitManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room: limitRoom } = limitManager.createRoom('P1');
+  for (let i = 2; i <= 9; i++) {
+    const joined = limitManager.joinRoom(limitRoom.id, `P${i}`);
+    assert(joined.ok, `P${i} should join before room is full`);
+  }
+  const overflow = limitManager.joinRoom(limitRoom.id, 'P10');
+  assert(!overflow.ok && overflow.error.includes('房间已满'), '10th player should be rejected');
+}
+
+{
   let changedRoom = null;
   const timeoutManager = new RoomManager({
     actionTimeoutMs: 20,

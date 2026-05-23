@@ -284,7 +284,7 @@ export class GameEngine {
   }
 
   _firstPostFlopActorIndex() {
-    return this.order.length === 2 ? this.dealerIndex : (this.dealerIndex + 1) % this.order.length;
+    return (this.dealerIndex + 1) % this.order.length;
   }
 
   _nextIndexFrom(startIndex) {

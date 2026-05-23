@@ -3,6 +3,7 @@ import { GameEngine } from './gameEngine.js';
 
 const OFFLINE_AUTO_FOLD_MS = Number(process.env.OFFLINE_AUTO_FOLD_MS || 30000);
 const ACTION_TIMEOUT_MS = Number(process.env.ACTION_TIMEOUT_MS || 30000);
+const MAX_PLAYERS_PER_ROOM = Number(process.env.MAX_PLAYERS_PER_ROOM || 9);
 
 function generateRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -93,6 +94,7 @@ export class RoomManager {
     const id = String(roomId || '').trim().toUpperCase();
     const room = this.rooms.get(id);
     if (!room) return { ok: false, error: '房间不存在' };
+    if (room.players.size >= MAX_PLAYERS_PER_ROOM) return { ok: false, error: '房间已满' };
 
     const player = createPlayer(playerName);
     room.players.set(player.id, player);

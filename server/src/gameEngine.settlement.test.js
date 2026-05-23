@@ -33,6 +33,21 @@ function makeEngine() {
 }
 
 {
+  const engine = new GameEngine('HEADSUP_POSTFLOP', [
+    ['A', { name: 'A' }],
+    ['B', { name: 'B' }],
+  ]);
+  engine.startHand();
+  assert(engine.order[engine.activeIndex] === 'A', 'heads-up button/small blind acts first preflop');
+  let result = engine.applyAction('A', 'call');
+  assert(result.ok, 'button should complete preflop');
+  result = engine.applyAction('B', 'check');
+  assert(result.ok, 'big blind should check option preflop');
+  assert(engine.phase === 'flop', `hand should advance to flop, got ${engine.phase}`);
+  assert(engine.order[engine.activeIndex] === 'B', 'heads-up big blind should act first postflop');
+}
+
+{
   const engine = makeEngine();
   engine.phase = 'river';
   engine.community = [card(2, 'c'), card(7, 'd'), card(9, 'h'), card(11, 's'), card(13, 'c')];
@@ -47,6 +62,11 @@ function makeEngine() {
   assert(engine.seats.A.chips === 1150, `A should split main pot, got ${engine.seats.A.chips}`);
   assert(engine.seats.B.chips === 1150, `B should split main pot, got ${engine.seats.B.chips}`);
   assert(engine.seats.C.chips === 1000, `C should win nothing, got ${engine.seats.C.chips}`);
+  const publicState = engine.toPublicState('C');
+  const revealedA = publicState.seats.find((seat) => seat.id === 'A')?.holeCards;
+  const revealedB = publicState.seats.find((seat) => seat.id === 'B')?.holeCards;
+  assert(revealedA?.includes('A♠') && revealedA?.includes('3♦'), 'ended hand should reveal A hole cards to opponents');
+  assert(revealedB?.includes('A♥') && revealedB?.includes('3♣'), 'ended hand should reveal B hole cards to opponents');
 }
 
 {
