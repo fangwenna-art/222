@@ -16,6 +16,7 @@
 - 底部固定操作栏（过牌 / 跟注 / 下注 / 加注 / 弃牌 / 全下）
 - 局结束：桌心一行摘要 + 延迟展开结果面板（结算明细与亮牌）
 - 房间保留最近 10 局摘要（「最近局数」列表）
+- 房间内筹码统计：每局净盈亏、胜局/局数、当前筹码（房主局间改起始筹码时清零）
 - 房主可在局间配置起始筹码与小盲 / 大盲（`room:settings`，下一局生效）
 
 ## 目录结构
@@ -228,7 +229,16 @@ https://your-domain.com/socket.io/
 | C→S | `room:settings` | 房主修改 `{ startingChips?, smallBlind?, bigBlind? }`（仅局间） |
 | C→S | `game:start` | 开始新一局（房主） |
 | C→S | `game:action` | `{ action, amount? }` — fold / check / call / bet / raise / allin |
-| S→C | `gameState` | 广播完整状态（含 `viewer`、`waitingPlayers`、玩家 `offlineFoldDeadlineAt`） |
+| S→C | `gameState` | 广播完整状态（含 `viewer`、`waitingPlayers`、`chipStats`、玩家 `offlineFoldDeadlineAt`） |
+
+### 筹码统计
+
+- **`gameState.chipStats`**：当前房间内每位玩家的累计数据，按净盈亏降序
+- 字段：`name`、`chips`（当前筹码）、`netChips`（累计净盈亏）、`handsWon` / `handsPlayed`（胜局 / 参与局数）
+- 每局结束时，服务端对比**发盲注前**筹码与结算后筹码计算 `netChips`；有赢分的玩家 `handsWon + 1`
+- 仅统计**实际入局**的玩家；中途旁观、等待入局不计入局数
+- **清零时机**：房主在局间修改**起始筹码**时，全员筹码重置为新的起始值，统计一并清零（仅改盲注不影响统计）
+- 面板在至少完成 1 局后显示，位于「最近局数」下方
 
 ### 断线重连与旁观
 

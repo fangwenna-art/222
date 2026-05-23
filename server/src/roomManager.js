@@ -92,6 +92,41 @@ function createDefaultRoomSettings() {
   return { ...DEFAULT_GAME_SETTINGS };
 }
 
+function createEmptyChipStats() {
+  return { handsPlayed: 0, handsWon: 0, netChips: 0 };
+}
+
+function ensureChipStats(room, playerId) {
+  if (!room.chipStats.has(playerId)) {
+    room.chipStats.set(playerId, createEmptyChipStats());
+  }
+  return room.chipStats.get(playerId);
+}
+
+function resetChipStats(room) {
+  room.chipStats.clear();
+  for (const player of room.players.values()) {
+    ensureChipStats(room, player.id);
+  }
+}
+
+function buildChipStatsPayload(room) {
+  return Array.from(room.players.values())
+    .map((player) => {
+      const stats = ensureChipStats(room, player.id);
+      return {
+        id: player.id,
+        name: player.name,
+        chips: player.chips,
+        handsPlayed: stats.handsPlayed,
+        handsWon: stats.handsWon,
+        netChips: stats.netChips,
+        isHost: player.id === room.hostPlayerId,
+      };
+    })
+    .sort((a, b) => b.netChips - a.netChips || (b.chips ?? 0) - (a.chips ?? 0) || a.name.localeCompare(b.name, 'zh'));
+}
+
 function parseRoomSettings(payload, current = createDefaultRoomSettings()) {
   const startingChips = payload?.startingChips != null
     ? Math.floor(Number(payload.startingChips))
@@ -151,6 +186,8 @@ function createRoom(roomId) {
     showdownTimer: null,
     handHistory: [],
     lastHistorySignature: '',
+    chipStats: new Map(),
+    handStartStacks: null,
     settings: createDefaultRoomSettings(),
     actionPausedForPlayerId: null,
     actionPausedRemainingMs: null,
@@ -276,6 +313,8 @@ export class RoomManager {
     const signature = handHistorySignature(engine);
     if (!signature || signature === room.lastHistorySignature) return;
 
+    this._updateChipStats(room, engine);
+
     room.lastHistorySignature = signature;
     room.handHistory.unshift({
       summary: buildHandHistorySummary(engine),
@@ -285,6 +324,28 @@ export class RoomManager {
     if (room.handHistory.length > MAX_HAND_HISTORY) {
       room.handHistory.length = MAX_HAND_HISTORY;
     }
+  }
+
+  _updateChipStats(room, engine) {
+    const stacks = room.handStartStacks;
+    if (!stacks) return;
+
+    const winnerIds = new Set(
+      (engine.winners || []).filter((winner) => winner.amount > 0).map((winner) => winner.id),
+    );
+
+    for (const [playerId, startChips] of Object.entries(stacks)) {
+      const player = room.players.get(playerId);
+      if (!player) continue;
+
+      const stats = ensureChipStats(room, playerId);
+      const endChips = player.chips ?? startChips;
+      stats.handsPlayed += 1;
+      stats.netChips += endChips - startChips;
+      if (winnerIds.has(playerId)) stats.handsWon += 1;
+    }
+
+    room.handStartStacks = null;
   }
 
   clearActionTimer(room) {
@@ -314,6 +375,7 @@ export class RoomManager {
     player.chips = room.settings.startingChips;
     room.players.set(player.id, player);
     room.hostPlayerId = player.id;
+    ensureChipStats(room, player.id);
     this.rooms.set(roomId, room);
     this.tokenIndex.set(player.token, { roomId, playerId: player.id });
     return { room, player };
@@ -328,6 +390,7 @@ export class RoomManager {
     const player = createPlayer(playerName);
     player.chips = room.settings.startingChips;
     room.players.set(player.id, player);
+    ensureChipStats(room, player.id);
     this.tokenIndex.set(player.token, { roomId: id, playerId: player.id });
     return { ok: true, room, player };
   }
@@ -419,11 +482,15 @@ export class RoomManager {
       defaultStartingChips: room.settings.startingChips,
     });
 
+    const preHandStacks = Object.fromEntries(
+      entries.map(([id, player]) => [id, player.chips ?? room.settings.startingChips]),
+    );
     const result = engine.startHand();
     if (!result.ok) return result;
 
     room.engine = engine;
     room.dealerSeatId = engine.getDealerId();
+    room.handStartStacks = preHandStacks;
     this.clearShowdownTimer(room);
     this._afterEngineMutation(room);
     return { ok: true, room };
@@ -443,11 +510,18 @@ export class RoomManager {
     const parsed = parseRoomSettings(payload, room.settings);
     if (!parsed.ok) return parsed;
 
+    const previousStartingChips = room.settings.startingChips;
     room.settings = parsed.settings;
     if (!room.engine) {
       for (const player of room.players.values()) {
         player.chips = room.settings.startingChips;
       }
+      resetChipStats(room);
+    } else if (room.engine.canConfigureRoom() && room.settings.startingChips !== previousStartingChips) {
+      for (const player of room.players.values()) {
+        player.chips = room.settings.startingChips;
+      }
+      resetChipStats(room);
     }
 
     return { ok: true, room, settings: room.settings };
@@ -560,6 +634,7 @@ export class RoomManager {
         wasShowdown,
         endedAt,
       })),
+      chipStats: buildChipStatsPayload(room),
       roomSettings: { ...room.settings },
       canEditSettings: !room.engine || room.engine.canConfigureRoom(),
     };

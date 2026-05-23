@@ -73,6 +73,8 @@ const els = {
   resultLogList: $('resultLogList'),
   handHistoryBox: $('handHistoryBox'),
   handHistoryList: $('handHistoryList'),
+  chipStatsBox: $('chipStatsBox'),
+  chipStatsList: $('chipStatsList'),
   roomBlindsLabel: $('roomBlindsLabel'),
   roomSettingsBox: $('roomSettingsBox'),
   btnToggleSettings: $('btnToggleSettings'),
@@ -1089,6 +1091,33 @@ function renderHandHistory(entries) {
   });
 }
 
+function formatNetChips(value) {
+  const amount = Number(value) || 0;
+  if (amount > 0) return `+${amount}`;
+  return String(amount);
+}
+
+function renderChipStats(entries) {
+  const list = entries || [];
+  if (!els.chipStatsBox || !els.chipStatsList) return;
+  const hasActivity = list.some((entry) => (entry.handsPlayed ?? 0) > 0);
+  els.chipStatsBox.hidden = !hasActivity;
+  els.chipStatsList.innerHTML = '';
+  list.forEach((entry) => {
+    const li = document.createElement('li');
+    li.className = 'chip-stats-item';
+    if (entry.id === myPlayerId) li.classList.add('is-me');
+    const netClass = entry.netChips > 0 ? 'is-up' : entry.netChips < 0 ? 'is-down' : '';
+    li.innerHTML = `
+      <span class="chip-stats-name">${entry.name}</span>
+      <span class="chip-stats-net ${netClass}">${formatNetChips(entry.netChips)}</span>
+      <span class="chip-stats-record">${entry.handsWon}/${entry.handsPlayed}</span>
+      <span class="chip-stats-chips">${entry.chips ?? '—'}</span>
+    `;
+    els.chipStatsList.appendChild(li);
+  });
+}
+
 function renderGameState(gameState) {
   if (!gameState) return;
   window.__lastGameState = gameState;
@@ -1111,6 +1140,7 @@ function renderGameState(gameState) {
 
   els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
   renderHandHistory(gameState.handHistory);
+  renderChipStats(gameState.chipStats);
   renderRoomSettings(gameState, hand);
 
   if (!hand) {

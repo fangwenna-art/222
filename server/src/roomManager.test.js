@@ -270,4 +270,46 @@ manager.clearActionTimer(room);
   assert(removed === true, 'all offline between hands should remove room');
 }
 
+{
+  const statsManager = new RoomManager({ actionTimeoutMs: 1000000, showdownPauseMs: 1000000 });
+  const { room: statsRoom } = statsManager.createRoom('A');
+  const guestJoin = statsManager.joinRoom(statsRoom.id, 'B');
+  assert(guestJoin.ok, 'chip stats room should accept B');
+  statsManager.startHand(statsRoom.id);
+  const raiserId = statsRoom.engine.order[statsRoom.engine.activeIndex];
+  const folderId = statsRoom.engine.order[(statsRoom.engine.activeIndex + 1) % statsRoom.engine.order.length];
+  statsRoom.engine.applyAction(raiserId, 'raise', 40);
+  statsRoom.engine.applyAction(folderId, 'fold');
+  statsManager._afterEngineMutation(statsRoom);
+  const state = statsManager.buildGameState(statsRoom, raiserId);
+  assert(state.chipStats?.length === 2, 'chip stats should include both players');
+  const winner = state.chipStats.find((entry) => entry.id === raiserId);
+  const loser = state.chipStats.find((entry) => entry.id === folderId);
+  assert(winner?.handsWon === 1 && winner?.handsPlayed === 1, 'winner should have one win and one hand played');
+  assert(loser?.handsWon === 0 && loser?.handsPlayed === 1, 'loser should have zero wins and one hand played');
+  assert((winner?.netChips ?? 0) + (loser?.netChips ?? 0) === 0, 'chip deltas should be zero-sum');
+  assert((winner?.netChips ?? 0) > 0, 'winner should have positive net chips');
+  statsManager.clearShowdownTimer(statsRoom);
+}
+
+{
+  const resetStatsManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room: resetRoom, player: host } = resetStatsManager.createRoom('A');
+  const guestJoin = resetStatsManager.joinRoom(resetRoom.id, 'B');
+  resetStatsManager.startHand(resetRoom.id);
+  const raiserId = resetRoom.engine.order[resetRoom.engine.activeIndex];
+  const folderId = resetRoom.engine.order[(resetRoom.engine.activeIndex + 1) % resetRoom.engine.order.length];
+  resetRoom.engine.applyAction(raiserId, 'raise', 40);
+  resetRoom.engine.applyAction(folderId, 'fold');
+  resetStatsManager._afterEngineMutation(resetRoom);
+  resetStatsManager.clearShowdownTimer(resetRoom);
+  assert(resetStatsManager.buildGameState(resetRoom, host.id).chipStats[0].handsPlayed === 1, 'stats should exist before reset');
+
+  const updated = resetStatsManager.updateRoomSettings(resetRoom.id, host.id, { startingChips: 1500 });
+  assert(updated.ok, 'host should reset starting chips between hands');
+  const resetState = resetStatsManager.buildGameState(resetRoom, host.id);
+  assert(resetState.chipStats.every((entry) => entry.handsPlayed === 0 && entry.netChips === 0), 'chip stats should reset with starting chips');
+  assert(host.chips === 1500 && guestJoin.player.chips === 1500, 'chips should match new starting stack');
+}
+
 console.log('全部房间控制测试通过');
