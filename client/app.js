@@ -53,6 +53,9 @@ const els = {
   tablePotLabel: $('tablePotLabel'),
   gameMessage: $('gameMessage'),
   actionTimer: $('actionTimer'),
+  presenceBanner: $('presenceBanner'),
+  waitingPlayersBox: $('waitingPlayersBox'),
+  waitingPlayersList: $('waitingPlayersList'),
   tableMessage: $('tableMessage'),
   mySeatPanel: $('mySeatPanel'),
   mySeatName: $('mySeatName'),
@@ -136,6 +139,9 @@ let lastSettingsHandPhase = null;
 let settingsPanelExpanded = false;
 let settingsExpandedManual = false;
 let settingsEverSaved = false;
+let sessionResuming = false;
+let resumeNoticeUntil = 0;
+let socketConnected = false;
 
 const IN_HAND_PHASES = new Set(['preflop', 'flop', 'turn', 'river']);
 const SETTINGS_MOBILE_MQL = window.matchMedia('(max-width: 520px)');
@@ -574,21 +580,42 @@ function renderShowdownTimer(hand) {
   actionTimerInterval = window.setInterval(update, 250);
 }
 
+function refreshOfflineFoldCountdowns() {
+  const gameState = window.__lastGameState;
+  if (!gameState) return;
+  renderPresenceBanner(gameState);
+  document.querySelectorAll('.offline-fold-tag').forEach((tag) => {
+    const deadline = Number(tag.dataset.deadline || 0);
+    const remainSec = formatRemainSec(deadline);
+    tag.textContent = remainSec > 0 ? `${remainSec}s 弃` : '弃牌中';
+  });
+}
+
 function renderActionTimer(hand) {
   clearActionTimer();
   if (hand?.phase === 'showdown') {
     renderShowdownTimer(hand);
     return;
   }
+
+  const activeSeat = hand?.seats?.find((s) => s.id === hand.activePlayerId);
+  if (hand?.activePlayerId && !hand.actionDeadlineAt && activeSeat?.online === false) {
+    els.actionTimer.hidden = false;
+    els.actionTimer.textContent = `等待 ${activeSeat.name} 重新连接…`;
+    els.actionTimer.classList.remove('is-warning');
+    actionTimerInterval = window.setInterval(refreshOfflineFoldCountdowns, 250);
+    return;
+  }
+
   if (!hand?.actionDeadlineAt || !hand.activePlayerId) return;
 
-  const activeSeat = hand.seats.find((s) => s.id === hand.activePlayerId);
   const update = () => {
     const remainMs = Math.max(0, hand.actionDeadlineAt - Date.now());
     const remainSec = Math.ceil(remainMs / 1000);
     els.actionTimer.hidden = false;
     els.actionTimer.textContent = `轮到 ${activeSeat?.name || '玩家'} · 剩余 ${remainSec}s${hand.activePlayerId === myPlayerId ? ' · 到时自动操作' : ''}`;
     els.actionTimer.classList.toggle('is-warning', remainSec <= 5);
+    refreshOfflineFoldCountdowns();
     if (remainMs <= 0) window.clearInterval(actionTimerInterval);
   };
   update();
@@ -885,6 +912,74 @@ function renderRoomSettingsMeta(mode, dirty) {
   if (els.roomSettingsHelp) els.roomSettingsHelp.textContent = meta.help;
 }
 
+function formatRemainSec(deadlineAt) {
+  if (!deadlineAt) return 0;
+  return Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+}
+
+function resumeErrorMessage(res) {
+  if (res?.code === 'ROOM_NOT_FOUND') return '房间已解散，请重新加入';
+  if (res?.code === 'SESSION_INVALID') return '会话已失效，请重新加入房间';
+  if (res?.code === 'PLAYER_NOT_FOUND') return '玩家不在房间中，请重新加入';
+  return res?.error || '恢复失败，请重新加入房间';
+}
+
+function buildPlayerMetaMap(players) {
+  return new Map((players || []).map((player) => [player.id, player]));
+}
+
+function renderPresenceBanner(gameState) {
+  if (!els.presenceBanner) return;
+
+  const viewer = gameState?.viewer;
+  let text = '';
+  let tone = 'neutral';
+  let visible = false;
+
+  if (sessionResuming) {
+    text = '正在恢复会话…';
+    tone = 'warn';
+    visible = true;
+  } else if (!socketConnected) {
+    text = '连接已断开，正在自动重连…';
+    tone = 'warn';
+    visible = true;
+  } else if (resumeNoticeUntil > Date.now()) {
+    text = viewer?.inHand ? '已重新连接，欢迎回来' : '已重新连接';
+    tone = 'ok';
+    visible = true;
+  } else if (viewer?.isSpectating) {
+    text = '本局旁观中，下一局开始时自动入局';
+    tone = 'info';
+    visible = true;
+  }
+
+  els.presenceBanner.hidden = !visible;
+  els.presenceBanner.dataset.tone = tone;
+  els.presenceBanner.textContent = text;
+}
+
+function renderWaitingPlayers(gameState, hand) {
+  if (!els.waitingPlayersBox || !els.waitingPlayersList) return;
+  const waiting = gameState?.waitingPlayers || [];
+  const show = Boolean(hand && waiting.length > 0);
+  els.waitingPlayersBox.hidden = !show;
+  els.waitingPlayersList.innerHTML = '';
+  if (!show) return;
+
+  waiting.forEach((player) => {
+    const li = document.createElement('li');
+    li.className = 'waiting-player-chip';
+    if (player.id === myPlayerId) li.classList.add('is-me');
+    if (!player.online) li.classList.add('is-offline');
+    li.innerHTML = `
+      <span class="waiting-player-name">${player.name}</span>
+      <span class="waiting-player-meta">${player.online ? '下局入局' : '离线 · 下局在线后入局'}</span>
+    `;
+    els.waitingPlayersList.appendChild(li);
+  });
+}
+
 function renderRoomSettings(gameState, hand) {
   const settings = gameState?.roomSettings;
   const effectiveBlinds = hand?.smallBlind != null && hand?.bigBlind != null
@@ -1021,6 +1116,8 @@ function renderGameState(gameState) {
         ? '至少 2 人在线且有筹码才能开始'
         : '房间已就绪，可以开始';
     els.allInConfirm.hidden = true;
+    renderWaitingPlayers(gameState, null);
+    renderPresenceBanner(gameState);
     syncDockVisibility();
     return;
   }
@@ -1037,14 +1134,18 @@ function renderGameState(gameState) {
   renderCards(els.communityCards, hand.communityCards);
 
   const mySeat = hand.seats.find((seat) => seat.id === myPlayerId);
-  els.mySeatPanel.hidden = !mySeat;
-  els.mySeatName.textContent = mySeat?.name || '我';
+  const viewer = gameState.viewer;
+  els.mySeatPanel.hidden = !mySeat && !viewer?.isSpectating;
+  els.mySeatName.textContent = mySeat?.name || players.find((p) => p.id === myPlayerId)?.name || '我';
   els.mySeatMeta.textContent = mySeat
     ? `筹码 ${mySeat.chips} · 本轮 ${mySeat.bet}${mySeat.folded ? ' · 已弃牌' : ''}${mySeat.allIn ? ' · 全下' : ''}`
-    : '旁观中';
+    : viewer?.isSpectating
+      ? '本局旁观 · 下局自动入局'
+      : '等待入局';
   renderCards(els.myCards, mySeat?.holeCards || []);
 
   els.seatList.innerHTML = '';
+  const playerMeta = buildPlayerMetaMap(gameState.players);
   const tableSeats = orderSeatsForTable(hand.seats);
   const winnerIds = new Set((hand.winners || []).map((w) => w.id));
   const showdownIds = new Set((hand.showdownHands || []).map((entry) => entry.id));
@@ -1060,6 +1161,12 @@ function renderGameState(gameState) {
     if (winnerIds.has(seat.id)) li.classList.add('is-winner');
     if (isShowdown && showdownIds.has(seat.id) && !seat.folded) li.classList.add('is-revealed');
 
+    const meta = playerMeta.get(seat.id);
+    const offlineDeadline = meta?.offlineFoldDeadlineAt;
+    const offlineFoldTag = offlineDeadline && seat.online === false
+      ? `<span class="tag tag-fold offline-fold-tag" data-deadline="${offlineDeadline}">${formatRemainSec(offlineDeadline)}s 弃</span>`
+      : '';
+
     li.innerHTML = `
       <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(seat)}</div>
       <div class="seat-head">
@@ -1073,6 +1180,7 @@ function renderGameState(gameState) {
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
         ${seat.allIn ? '<span class="tag">全下</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
+        ${offlineFoldTag}
       </div>
       ${seat.bet > 0 ? `<div class="bet-stack">${seat.bet}</div>` : ''}
     `;
@@ -1167,6 +1275,8 @@ function renderGameState(gameState) {
         : '本局已结束，可开始新一局';
   }
   els.actionHint.hidden = !(inHand || canStartNew);
+  renderWaitingPlayers(gameState, hand);
+  renderPresenceBanner(gameState);
   syncDockVisibility();
 }
 
@@ -1192,19 +1302,24 @@ function clearRoomView() {
 }
 
 socket.on('connect', () => {
+  socketConnected = true;
   setStatus('已连接', 'online');
   setLobbyButtonsEnabled(true);
 
   if (currentSession?.roomId && currentSession?.playerId && currentSession?.token) {
+    sessionResuming = true;
+    if (window.__lastGameState) renderPresenceBanner(window.__lastGameState);
     setMessage('正在恢复房间状态…');
     socket.emit('room:resume', currentSession, (res) => {
+      sessionResuming = false;
       if (!res?.ok) {
         saveSession(null);
         clearRoomView();
-        setMessage(res?.error || '恢复失败，请重新加入房间', 'error');
+        setMessage(resumeErrorMessage(res), 'error');
         return;
       }
       rememberSession(res);
+      resumeNoticeUntil = Date.now() + 4000;
       renderGameState(res.gameState);
       setMessage(`已恢复房间 ${res.gameState.roomId}`, 'success');
     });
@@ -1216,10 +1331,12 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', () => {
+  socketConnected = false;
   resetStartHandPending();
   setStatus('已断开', 'offline');
   setMessage('连接已断开，正在等待自动重连…');
   setLobbyButtonsEnabled(false);
+  if (window.__lastGameState) renderPresenceBanner(window.__lastGameState);
 });
 
 socket.on('connect_error', (err) => {

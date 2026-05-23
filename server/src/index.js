@@ -98,6 +98,8 @@ function attachPlayerToSocket(socket, roomId, player) {
   player.socketId = socket.id;
   player.online = true;
   player.offlineAt = null;
+  const { room } = roomManager.getRoomAndPlayer(roomId, player.id);
+  if (room) roomManager.onPlayerOnline(room, player);
   socket.join(roomId);
   socket.data.roomId = roomId;
   socket.data.playerId = player.id;

@@ -7,6 +7,46 @@ const SHOWDOWN_PAUSE_MS = Number(process.env.SHOWDOWN_PAUSE_MS || 1800);
 const MAX_PLAYERS_PER_ROOM = Number(process.env.MAX_PLAYERS_PER_ROOM || 9);
 const MAX_HAND_HISTORY = Number(process.env.MAX_HAND_HISTORY || 10);
 
+export { OFFLINE_AUTO_FOLD_MS };
+
+function offlineFoldDeadlineAt(player, room) {
+  if (!player || player.online || !player.offlineAt || !player.offlineFoldTimer) return null;
+  if (!room.engine || room.engine.canStart()) return null;
+  const seat = room.engine.seats[player.id];
+  if (!seat || seat.folded) return null;
+  return player.offlineAt + OFFLINE_AUTO_FOLD_MS;
+}
+
+function getWaitingPlayers(room) {
+  const seatIds = room.engine ? new Set(Object.keys(room.engine.seats)) : new Set();
+  return Array.from(room.players.values())
+    .filter((player) => !seatIds.has(player.id))
+    .map((player) => ({
+      id: player.id,
+      name: player.name,
+      online: player.online,
+      chips: player.chips,
+      isHost: player.id === room.hostPlayerId,
+    }));
+}
+
+function buildViewerContext(room, viewerPlayerId) {
+  const player = room.players.get(viewerPlayerId);
+  if (!player) return null;
+
+  const seatIds = room.engine ? new Set(Object.keys(room.engine.seats)) : new Set();
+  const inHand = seatIds.has(viewerPlayerId);
+  const handActive = Boolean(room.engine && !room.engine.canStart());
+
+  return {
+    inHand,
+    isSpectating: handActive && !inHand,
+    isOffline: !player.online,
+    offlineFoldDeadlineAt: offlineFoldDeadlineAt(player, room),
+    joinNextHand: handActive && !inHand && player.online,
+  };
+}
+
 function handHistorySignature(engine) {
   if (!engine || engine.phase !== 'ended') return '';
   return `${engine.message}|${(engine.winners || []).map((w) => `${w.id}:${w.amount}:${w.reason}`).join(',')}`;
@@ -112,6 +152,8 @@ function createRoom(roomId) {
     handHistory: [],
     lastHistorySignature: '',
     settings: createDefaultRoomSettings(),
+    actionPausedForPlayerId: null,
+    actionPausedRemainingMs: null,
   };
 }
 
@@ -124,20 +166,37 @@ export class RoomManager {
     this.showdownPauseMs = showdownPauseMs;
   }
 
-  _scheduleActionTimer(room) {
+  _scheduleActionTimer(room, delayMs = this.actionTimeoutMs) {
     this.clearActionTimer(room);
     const engine = room?.engine;
     const activePlayerId = engine?.activeIndex >= 0 ? engine.order[engine.activeIndex] : null;
     if (!engine || engine.canStart() || !activePlayerId) return;
 
-    room.actionDeadlineAt = Date.now() + this.actionTimeoutMs;
+    const activePlayer = room.players.get(activePlayerId);
+    if (activePlayer && !activePlayer.online) {
+      room.actionPausedForPlayerId = activePlayerId;
+      room.actionPausedRemainingMs = delayMs;
+      engine.actionDeadlineAt = null;
+      return;
+    }
+
+    const pauseMs = Math.max(0, delayMs);
+    room.actionDeadlineAt = Date.now() + pauseMs;
     engine.actionDeadlineAt = room.actionDeadlineAt;
-    engine.actionTimeoutMs = this.actionTimeoutMs;
+    engine.actionTimeoutMs = pauseMs;
     room.actionTimer = setTimeout(() => {
       const latestRoom = this.rooms.get(room.id);
       const latestEngine = latestRoom?.engine;
       const latestActivePlayerId = latestEngine?.activeIndex >= 0 ? latestEngine.order[latestEngine.activeIndex] : null;
       if (!latestRoom || !latestEngine || latestEngine.canStart() || latestActivePlayerId !== activePlayerId) return;
+
+      const latestActivePlayer = latestRoom.players.get(activePlayerId);
+      if (latestActivePlayer && !latestActivePlayer.online) {
+        latestRoom.actionPausedForPlayerId = activePlayerId;
+        latestRoom.actionPausedRemainingMs = 0;
+        latestEngine.actionDeadlineAt = null;
+        return;
+      }
 
       const seat = latestEngine.seats[activePlayerId];
       const toCall = seat ? Math.max(0, latestEngine.currentBet - seat.bet) : 0;
@@ -148,7 +207,7 @@ export class RoomManager {
       }
       this._afterEngineMutation(latestRoom);
       this.onRoomChanged(latestRoom);
-    }, this.actionTimeoutMs);
+    }, pauseMs);
   }
 
   clearShowdownTimer(room) {
@@ -279,14 +338,38 @@ export class RoomManager {
     const room = this.rooms.get(id);
     const player = room?.players.get(String(playerId || ''));
 
-    if (!saved || saved.roomId !== id || saved.playerId !== player?.id || !room || !player) {
-      return { ok: false, error: '无法恢复会话，请重新加入房间' };
+    if (!room) {
+      return { ok: false, code: 'ROOM_NOT_FOUND', error: '房间已解散，请重新加入' };
+    }
+    if (!saved || saved.roomId !== id) {
+      return { ok: false, code: 'SESSION_INVALID', error: '会话已失效，请重新加入房间' };
+    }
+    if (!player || saved.playerId !== player.id) {
+      return { ok: false, code: 'PLAYER_NOT_FOUND', error: '玩家不在房间中，请重新加入' };
     }
 
     this.clearOfflineFoldTimer(player);
     player.online = true;
     player.offlineAt = null;
     return { ok: true, room, player };
+  }
+
+  onPlayerOnline(room, player) {
+    if (!room || !player) return;
+
+    if (room.actionPausedForPlayerId === player.id) {
+      const remainMs = Math.max(500, room.actionPausedRemainingMs ?? this.actionTimeoutMs);
+      room.actionPausedForPlayerId = null;
+      room.actionPausedRemainingMs = null;
+      this._scheduleActionTimer(room, remainMs);
+      return;
+    }
+
+    const engine = room.engine;
+    const activePlayerId = engine?.activeIndex >= 0 ? engine.order[engine.activeIndex] : null;
+    if (engine && !engine.canStart() && activePlayerId === player.id && !room.actionTimer) {
+      this._scheduleActionTimer(room);
+    }
   }
 
   getRoomAndPlayer(roomId, playerId) {
@@ -387,6 +470,16 @@ export class RoomManager {
     this.syncChipsFromEngine(room);
 
     if (room.engine && !room.engine.canStart()) {
+      const activePlayerId = room.engine.activeIndex >= 0 ? room.engine.order[room.engine.activeIndex] : null;
+      if (activePlayerId === playerId && room.actionTimer) {
+        room.actionPausedForPlayerId = playerId;
+        room.actionPausedRemainingMs = room.actionDeadlineAt
+          ? Math.max(0, room.actionDeadlineAt - Date.now())
+          : this.actionTimeoutMs;
+        this.clearActionTimer(room);
+        room.engine.actionDeadlineAt = null;
+      }
+
       this.clearOfflineFoldTimer(player);
       player.offlineFoldTimer = setTimeout(() => {
         const latestRoom = this.rooms.get(roomId);
@@ -457,7 +550,10 @@ export class RoomManager {
         online: p.online,
         chips: p.chips,
         isHost: p.id === room.hostPlayerId,
+        offlineFoldDeadlineAt: offlineFoldDeadlineAt(p, room),
       })),
+      waitingPlayers: getWaitingPlayers(room),
+      viewer: viewerPlayerId ? buildViewerContext(room, viewerPlayerId) : null,
       hand: room.engine ? room.engine.toPublicState(viewerPlayerId) : null,
       handHistory: room.handHistory.map(({ summary, wasShowdown, endedAt }) => ({
         summary,

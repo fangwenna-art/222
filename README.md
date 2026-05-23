@@ -6,6 +6,8 @@
 
 - 创建房间 / 加入房间（最多 9 人）
 - 玩家进入、退出、断线重连（`room:resume` + localStorage）
+- 断线重连：行动计时暂停、离线自动弃牌倒计时、恢复错误码区分
+- 本局中途加入为旁观，下一局自动入局；等待玩家列表可见
 - 服务端广播 `gameState`，前端只渲染状态
 - 简化德州扑克流程：`preflop → flop → turn → river → showdown → ended`
 - 摊牌节奏：先亮牌停留约 1.8s，再结算进入 `ended`
@@ -208,7 +210,14 @@ https://your-domain.com/socket.io/
 | C→S | `room:settings` | 房主修改 `{ startingChips?, smallBlind?, bigBlind? }`（仅局间） |
 | C→S | `game:start` | 开始新一局（房主） |
 | C→S | `game:action` | `{ action, amount? }` — fold / check / call / bet / raise / allin |
-| S→C | `gameState` | 广播完整状态 |
+| S→C | `gameState` | 广播完整状态（含 `viewer`、`waitingPlayers`、玩家 `offlineFoldDeadlineAt`） |
+
+### 断线重连与旁观
+
+- **`room:resume` 失败码**：`ROOM_NOT_FOUND`（房间已解散）、`SESSION_INVALID`（token 失效）、`PLAYER_NOT_FOUND`
+- **局内断线**：保留座位；轮到行动时暂停行动计时；`OFFLINE_AUTO_FOLD_MS` 后自动弃牌
+- **局间断线**：不自动弃牌；全员离线且不在牌局中时房间解散
+- **中途加入**：`viewer.isSpectating === true`，出现在 `waitingPlayers`，下一局 `startHand` 时入局
 
 ## 手动指定 Socket 地址
 

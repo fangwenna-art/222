@@ -213,4 +213,61 @@ manager.clearActionTimer(room);
   settingsManager.clearShowdownTimer(settingsRoom);
 }
 
+{
+  const reconnectManager = new RoomManager({ actionTimeoutMs: 8000 });
+  const { room, player: host } = reconnectManager.createRoom('A');
+  const joined = reconnectManager.joinRoom(room.id, 'B');
+  assert(joined.ok, 'reconnect room should accept B');
+  reconnectManager.startHand(room.id, host.id);
+  const activeId = room.engine.order[room.engine.activeIndex];
+
+  reconnectManager.markOffline(room.id, activeId);
+  assert(room.actionPausedForPlayerId === activeId, 'active offline player should pause action timer');
+  assert(!room.actionTimer, 'action timer should be cleared while active player offline');
+
+  const activePlayer = room.players.get(activeId);
+  activePlayer.online = true;
+  activePlayer.offlineAt = null;
+  reconnectManager.onPlayerOnline(room, activePlayer);
+  assert(room.actionPausedForPlayerId == null, 'online should clear action pause marker');
+  assert(room.actionTimer, 'action timer should resume after reconnect');
+
+  reconnectManager.clearActionTimer(room);
+  reconnectManager.clearShowdownTimer(room);
+}
+
+{
+  const resumeManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room, player: host } = resumeManager.createRoom('A');
+  const joined = resumeManager.joinRoom(room.id, 'B');
+  assert(joined.ok, 'resume room should accept B');
+  joined.player.online = true;
+  resumeManager.startHand(room.id, host.id);
+  resumeManager.markOffline(room.id, host.id);
+  assert(host.online === false, 'markOffline should set player offline');
+  assert(host.offlineFoldTimer, 'mid-hand offline should schedule auto fold');
+
+  const resumed = resumeManager.resume(room.id, host.id, host.token);
+  assert(resumed.ok, 'valid resume should succeed');
+  assert(host.online === true, 'resume should mark player online');
+  assert(!host.offlineFoldTimer, 'resume should clear offline fold timer');
+
+  const missingRoom = resumeManager.resume('NOPE', host.id, host.token);
+  assert(!missingRoom.ok && missingRoom.code === 'ROOM_NOT_FOUND', 'missing room should return ROOM_NOT_FOUND');
+
+  resumeManager.clearActionTimer(room);
+  resumeManager.clearShowdownTimer(room);
+}
+
+{
+  const cleanupManager = new RoomManager({ actionTimeoutMs: 1000000 });
+  const { room, player: host } = cleanupManager.createRoom('A');
+  const joined = cleanupManager.joinRoom(room.id, 'B');
+  assert(joined.ok, 'cleanup room should accept B');
+  host.online = false;
+  joined.player.online = false;
+  const removed = cleanupManager.markOffline(room.id, joined.player.id).removed;
+  assert(removed === true, 'all offline between hands should remove room');
+}
+
 console.log('全部房间控制测试通过');
