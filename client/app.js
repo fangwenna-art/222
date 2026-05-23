@@ -111,7 +111,7 @@ let startHandPending = false;
 let resultPanelRevealTimer = null;
 let resultPanelDelayUntil = 0;
 
-const RESULT_PANEL_DELAY_MS = 600;
+const RESULT_PANEL_DELAY_MS = 3000;
 
 function clearResultPanelRevealTimer() {
   if (resultPanelRevealTimer) {
