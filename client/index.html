@@ -41,7 +41,7 @@
 
       <div class="phase-bar">
         <span id="gamePhase" class="phase-tag">waiting</span>
-        <span class="pot-label" id="roomPlayerSummary">玩家 0</span>
+        <span class="pot-label" id="roomPlayerSummary">玩家 0/9</span>
       </div>
       <p id="gameMessage" class="game-message">—</p>
       <p id="actionTimer" class="action-timer" hidden>—</p>
@@ -49,7 +49,7 @@
       <div class="poker-table">
         <ul id="seatList" class="seat-list table-seats"></ul>
         <div class="table-center">
-          <div class="table-pot">底池 <strong id="gamePot">0</strong></div>
+          <div class="table-pot"><span id="tablePotLabel">底池</span> <strong id="gamePot">0</strong></div>
           <div id="communityCards" class="cards-row community-cards"></div>
           <div class="table-message" id="tableMessage">—</div>
         </div>
@@ -64,10 +64,6 @@
           <span id="mySeatMeta">等待入局</span>
         </div>
         <div id="myCards" class="cards-row my-cards"></div>
-      </div>
-
-      <div class="section-label table-player-count">
-        <h3>玩家 <span id="playerCount">0</span></h3>
       </div>
 
       <div id="winnersBox" class="winners-box" hidden>

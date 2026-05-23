@@ -37,12 +37,12 @@ const els = {
   message: $('message'),
   roomPanel: $('roomPanel'),
   currentRoomId: $('currentRoomId'),
-  playerCount: $('playerCount'),
   roomPlayerSummary: $('roomPlayerSummary'),
   lobbyCard: $('lobbyCard'),
   bottomDock: $('bottomDock'),
   gamePhase: $('gamePhase'),
   gamePot: $('gamePot'),
+  tablePotLabel: $('tablePotLabel'),
   gameMessage: $('gameMessage'),
   actionTimer: $('actionTimer'),
   tableMessage: $('tableMessage'),
@@ -195,9 +195,20 @@ function cardHtml(label) {
   return `<span class="${classes.join(' ')}">${label || '🂠'}</span>`;
 }
 
-function seatCardsHtml(cards) {
-  if (!cards?.length) return '';
+function seatCardsHtml(cards, shouldReveal = false) {
+  if (!shouldReveal || !cards?.length) return '';
   return `<div class="seat-cards">${cards.map(cardHtml).join('')}</div>`;
+}
+
+function shortTableMessage(hand) {
+  if (!hand) return '等待玩家入座';
+  if (hand.phase === 'ended') {
+    const winner = hand.winners?.[0];
+    return winner ? `${winner.name} 获胜` : '本局结束';
+  }
+  const activeSeat = hand.seats?.find((seat) => seat.id === hand.activePlayerId);
+  if (activeSeat) return `轮到 ${activeSeat.name}`;
+  return PHASE_LABEL[hand.phase] || hand.message || '—';
 }
 
 function setDockVisible(visible) {
@@ -308,14 +319,14 @@ function renderGameState(gameState) {
   const { players, hand } = gameState;
   window.__lastHandState = hand;
 
-  els.playerCount.textContent = String(players.length);
   els.roomPlayerSummary.textContent = `玩家 ${players.length}/9`;
 
   if (!hand) {
     els.gamePhase.textContent = '大厅';
+    els.tablePotLabel.textContent = '底池';
     els.gamePot.textContent = '0';
     els.gameMessage.textContent = '至少 2 人可开始新一局';
-    els.tableMessage.textContent = '等待玩家入座';
+    els.tableMessage.textContent = shortTableMessage(null);
     renderCards(els.communityCards, []);
     const me = players.find((p) => p.id === myPlayerId);
     els.mySeatPanel.hidden = !me;
@@ -349,9 +360,11 @@ function renderGameState(gameState) {
     return;
   }
   els.gamePhase.textContent = PHASE_LABEL[hand.phase] || hand.phase;
-  els.gamePot.textContent = String(hand.pot);
-  els.gameMessage.textContent = hand.message || '—';
-  els.tableMessage.textContent = hand.message || '—';
+  const isEnded = hand.phase === 'ended';
+  els.tablePotLabel.textContent = isEnded ? '本局结束' : '底池';
+  els.gamePot.textContent = isEnded ? '' : String(hand.pot);
+  els.gameMessage.textContent = shortTableMessage(hand);
+  els.tableMessage.textContent = shortTableMessage(hand);
   renderActionTimer(hand);
   renderCards(els.communityCards, hand.communityCards);
 
@@ -377,7 +390,6 @@ function renderGameState(gameState) {
     if (seat.isDealer) li.classList.add('is-dealer');
     if (winnerIds.has(seat.id)) li.classList.add('is-winner');
 
-    const isHost = players.find((p) => p.id === seat.id)?.isHost;
     li.innerHTML = `
       <div class="seat-avatar" aria-hidden="true">${avatarForPlayer(seat)}</div>
       <div class="seat-head">
@@ -386,14 +398,13 @@ function renderGameState(gameState) {
         ${seat.isSmallBlind ? '<span class="tag">SB</span>' : ''}
         ${seat.isBigBlind ? '<span class="tag">BB</span>' : ''}
       </div>
-      <div class="seat-meta">筹码 ${seat.chips}${seat.bet > 0 ? ` · 本轮 ${seat.bet}` : ''}</div>
+      <div class="seat-meta">${seat.chips}</div>
       <div class="seat-status-row">
-        ${isHost ? '<span class="tag tag-host">房主</span>' : ''}
         ${seat.folded ? '<span class="tag tag-fold">弃</span>' : ''}
         ${seat.allIn ? '<span class="tag">All-in</span>' : ''}
         ${seat.online === false ? '<span class="tag tag-fold">离线</span>' : ''}
       </div>
-      ${seatCardsHtml(seat.holeCards)}
+      ${seatCardsHtml(seat.holeCards, isEnded && !seat.folded && seat.id !== myPlayerId)}
       ${seat.bet > 0 ? `<div class="bet-stack">${seat.bet}</div>` : ''}
     `;
     els.seatList.appendChild(li);

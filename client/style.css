@@ -362,6 +362,10 @@ body.room-active .poker-table {
   font-size: 1.0625rem;
 }
 
+.table-pot strong:empty {
+  display: none;
+}
+
 .table-message {
   max-width: 100%;
   font-size: 0.75rem;
@@ -477,18 +481,6 @@ body.room-active .poker-table {
   font-size: 1.0625rem;
 }
 
-.table-player-count {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin: -2px 0 8px;
-}
-
-.table-player-count h3 {
-  font-size: 0.75rem;
-  color: #64748b;
-}
-
 .seat-list.table-seats {
   list-style: none;
   position: absolute;
@@ -500,9 +492,9 @@ body.room-active .poker-table {
 
 .table-seats .seat-item {
   position: absolute;
-  width: 88px;
-  min-height: 66px;
-  padding: 22px 7px 7px;
+  width: 86px;
+  min-height: 62px;
+  padding: 20px 7px 6px;
   background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.34);
